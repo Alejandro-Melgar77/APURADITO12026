@@ -1,0 +1,170 @@
+{
+  "input": "C:\\Users\\Usuario\\Documents\\SW1 1-2026\\PROYECTO DE LA MATERIA\\APURADITO\\scrum apuradito\\documento apuradito.docx",
+  "fonts_by_char_count": {
+    "Calibri": 29387
+  },
+  "direct_run_formatting_runs": 915,
+  "direct_paragraph_formatting_paragraphs": 753,
+  "heading_like_paragraphs_not_heading_style": [
+    {
+      "para_index": 3,
+      "text": "DOCUMENTACI\u00d3N FINAL DEL PROYECTO",
+      "style": "Normal"
+    },
+    {
+      "para_index": 4,
+      "text": "APURADITO",
+      "style": "Normal"
+    },
+    {
+      "para_index": 253,
+      "text": "Asignatura",
+      "style": "Normal"
+    },
+    {
+      "para_index": 254,
+      "text": "Metodolog\u00eda",
+      "style": "Normal"
+    },
+    {
+      "para_index": 255,
+      "text": "Estado",
+      "style": "Normal"
+    },
+    {
+      "para_index": 259,
+      "text": "Integrante",
+      "style": "Normal"
+    },
+    {
+      "para_index": 260,
+      "text": "Rol Scrum",
+      "style": "Normal"
+    },
+    {
+      "para_index": 269,
+      "text": "Secci\u00f3n",
+      "style": "Normal"
+    },
+    {
+      "para_index": 270,
+      "text": "Contenido",
+      "style": "Normal"
+    },
+    {
+      "para_index": 284,
+      "text": "Indicador",
+      "style": "Normal"
+    },
+    {
+      "para_index": 285,
+      "text": "Meta",
+      "style": "Normal"
+    },
+    {
+      "para_index": 286,
+      "text": "Resultado de cierre",
+      "style": "Normal"
+    },
+    {
+      "para_index": 287,
+      "text": "Estado",
+      "style": "Normal"
+    },
+    {
+      "para_index": 308,
+      "text": "Indicador",
+      "style": "Normal"
+    },
+    {
+      "para_index": 309,
+      "text": "Criterio",
+      "style": "Normal"
+    },
+    {
+      "para_index": 310,
+      "text": "Resultado",
+      "style": "Normal"
+    },
+    {
+      "para_index": 311,
+      "text": "Interpretaci\u00f3n",
+      "style": "Normal"
+    },
+    {
+      "para_index": 328,
+      "text": "Dimensi\u00f3n",
+      "style": "Normal"
+    },
+    {
+      "para_index": 329,
+      "text": "Valor estimado",
+      "style": "Normal"
+    },
+    {
+      "para_index": 330,
+      "text": "Justificaci\u00f3n",
+      "style": "Normal"
+    }
+  ],
+  "examples": {
+    "direct_paragraph_formatting": [
+      {
+        "para_index": 1,
+        "text": "",
+        "style": "Normal"
+      },
+      {
+        "para_index": 3,
+        "text": "DOCUMENTACI\u00d3N FINAL DEL PROYECTO",
+        "style": "Normal"
+      },
+      {
+        "para_index": 4,
+        "text": "APURADITO",
+        "style": "Normal"
+      },
+      {
+        "para_index": 5,
+        "text": "Plataforma de viajes compartidos para Santa Cruz de la Sierra",
+        "style": "Normal"
+      },
+      {
+        "para_index": 6,
+        "text": "Fuente: elaboraci\u00f3n propia a partir del repositorio Apuradito.",
+        "style": "Normal"
+      }
+    ],
+    "direct_run_formatting": [
+      {
+        "para_index": 3,
+        "run_text": "DOCUMENTACI\u00d3N FINAL DEL PROYECTO",
+        "style": "Normal"
+      },
+      {
+        "para_index": 4,
+        "run_text": "APURADITO",
+        "style": "Normal"
+      },
+      {
+        "para_index": 5,
+        "run_text": "Plataforma de viajes compartidos para Santa Cruz de la Sierra",
+        "style": "Normal"
+      },
+      {
+        "para_index": 6,
+        "run_text": "Fuente: elaboraci\u00f3n propia a partir del repositorio Apuradito.",
+        "style": "Normal"
+      },
+      {
+        "para_index": 7,
+        "run_text": "Equipo Scrum",
+        "style": "Heading 2"
+      }
+    ]
+  },
+  "notes": [
+    "Direct formatting is not always wrong, but it often causes inconsistent output when templates change.",
+    "Heading-like paragraphs not using Heading styles can break TOC and accessibility."
+  ]
+}

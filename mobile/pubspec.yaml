@@ -1,0 +1,66 @@
+name: apuradito_mobile
+description: "Apuradito - App de transporte compartido para Santa Cruz de la Sierra"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State Management
+  provider: ^6.1.5+1
+
+  # Navigation
+  go_router: ^14.2.7
+
+  # HTTP & Network
+  dio: ^5.7.0
+  web_socket_channel: ^3.0.1
+
+  # Maps
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+
+  # Storage
+  shared_preferences: ^2.3.3
+  flutter_secure_storage: ^9.2.2
+
+  # Location
+  geolocator: ^13.0.2
+  permission_handler: ^11.3.1
+
+  # Media & Camera
+  image_picker: ^1.1.2
+  cached_network_image: ^3.4.1
+
+  # UI Enhancement
+  shimmer: ^3.0.0
+  flutter_svg: ^2.0.10+1
+
+  # Utils
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/logo.png"
+  adaptive_icon_background: "#7C3AED"
+  adaptive_icon_foreground: "assets/icons/logo.png"
+  min_sdk_android: 21
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/

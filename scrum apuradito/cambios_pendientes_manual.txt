@@ -1,0 +1,10 @@
+DOCUMENTACIÓN APURADITO - AJUSTES MANUALES O PENDIENTES
+==================================================
+
+No existen cambios obligatorios para completar la entrega: el documento Word, los artefactos Scrum, los gráficos y los diagramas UML se generaron listos para entregar.
+
+Ajustes opcionales si la cátedra los exige:
+1. Añadir en la carátula el nombre de la universidad, docente, paralelo y ciudad, porque esos datos no estaban en el proyecto ni en la solicitud.
+2. Confirmar o reasignar los roles Scrum usados en el documento: Alejandro Melgar (Product Owner), Luis Fernando Banegas Roca (Scrum Master), Luis Pablo Mendoza y Maikol Anthony Molina Cortez (Developers). Se asignaron para poder completar el artefacto con los cuatro integrantes indicados.
+3. Si se requiere una tabla de contenido con números de página institucional, abrir el documento en Word y generar/actualizarla desde Referencias. Los títulos ya están configurados como encabezados reales.
+4. Los diagramas editables están en la subcarpeta diagramas con extensión .drawio. Se pueden abrir con diagrams.net/draw.io sin reconstruirlos.

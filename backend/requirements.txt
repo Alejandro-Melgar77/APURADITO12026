@@ -1,0 +1,55 @@
+# Framework principal
+fastapi
+uvicorn[standard]
+
+# Base de datos
+sqlalchemy
+asyncpg
+alembic
+geoalchemy2
+
+# Validación y configuración
+pydantic
+pydantic-settings
+python-multipart
+email-validator
+
+# Autenticación
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt==4.0.1
+
+# Archivos y utilidades
+aiofiles
+aiohttp
+python-dotenv
+httpx
+
+# WebSockets
+websockets
+
+# Redis
+redis
+
+# Pagos y QR
+qrcode[pil]
+Pillow
+
+# Tareas programadas
+APScheduler
+
+# Reportes
+reportlab
+openpyxl
+
+# Email
+aiosmtplib
+
+# IA y Machine Learning
+ruff
+torch
+torchvision
+scikit-learn
+opencv-python-headless
+easyocr
+numpy
