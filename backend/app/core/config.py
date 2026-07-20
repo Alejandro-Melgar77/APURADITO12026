@@ -68,8 +68,8 @@ class Settings(BaseSettings):
                 or len(self.SECRET_KEY) < 32
             ):
                 raise ValueError("SECRET_KEY debe ser unica y tener al menos 32 caracteres")
-            if self.DEBUG:
-                raise ValueError("DEBUG debe ser false en produccion")
+            # Auto-desactivar DEBUG por seguridad
+            self.DEBUG = False
         return self
 
     @property
