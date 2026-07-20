@@ -13,15 +13,22 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => {
   // Inicialización desde localStorage para persistencia
-  const savedUser = localStorage.getItem('apuradito_usuario')
+  const savedUserRaw = localStorage.getItem('apuradito_usuario')
   const savedAccess = localStorage.getItem('apuradito_access_token')
   const savedRefresh = localStorage.getItem('apuradito_refresh_token')
+  let savedUser: Usuario | null = null
+
+  try {
+    savedUser = savedUserRaw ? (JSON.parse(savedUserRaw) as Usuario) : null
+  } catch {
+    localStorage.removeItem('apuradito_usuario')
+  }
 
   return {
-    usuario: savedUser ? JSON.parse(savedUser) : null,
+    usuario: savedUser,
     accessToken: savedAccess || null,
     refreshToken: savedRefresh || null,
-    isAuthenticated: !!savedAccess,
+    isAuthenticated: !!savedAccess && !!savedUser,
     login: (usuario, access, refresh) => {
       localStorage.setItem('apuradito_usuario', JSON.stringify(usuario))
       localStorage.setItem('apuradito_access_token', access)

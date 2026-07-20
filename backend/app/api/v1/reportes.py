@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
+from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.api.deps import get_current_admin
 from app.models.usuario import Usuario
@@ -132,6 +133,7 @@ async def obtener_conductores_morosos(
     # Buscamos conductores que tengan comisiones pendientes mayores a 0
     result = await db.execute(
         select(Conductor)
+        .options(selectinload(Conductor.usuario))
         .where(Conductor.comisiones_pendientes_bs > 0)
         .order_by(Conductor.comisiones_pendientes_bs.desc())
     )
@@ -214,6 +216,7 @@ async def exportar_excel(
     # ── Conductores morosos ─────────────────────────────────────────────────
     res_morosos = await db.execute(
         select(Conductor)
+        .options(selectinload(Conductor.usuario))
         .where(Conductor.comisiones_pendientes_bs > 0)
         .order_by(Conductor.comisiones_pendientes_bs.desc())
     )

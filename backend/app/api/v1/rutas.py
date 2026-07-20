@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
+from geoalchemy2.shape import to_shape
 from typing import List, Optional
 from app.core.database import get_db
 from app.api.deps import get_current_active_user
@@ -8,6 +10,7 @@ from app.models.usuario import Usuario
 from app.models.conductor import Conductor
 from app.models.vehiculo import Vehiculo
 from app.models.ruta_publicada import RutaPublicada
+from app.models.solicitud_viaje import SolicitudViaje
 from app.schemas.ruta import (
     RutaPublicadaCreate,
     RutaPublicadaResponse,
@@ -16,6 +19,65 @@ from app.schemas.ruta import (
 from app.services.matching_rutas import encontrar_rutas_optimas
 
 router = APIRouter()
+
+
+def _coordenada_geografica(valor):
+    """Convierte una geometria PostGIS a coordenadas serializables para clientes."""
+    if valor is None:
+        return None
+    punto = to_shape(valor)
+    return {"lat": punto.y, "lng": punto.x}
+
+
+def _linea_geografica(valor):
+    if valor is None:
+        return []
+    linea = to_shape(valor)
+    return [[longitud, latitud] for longitud, latitud in linea.coords]
+
+
+def _ruta_para_movil(ruta: RutaPublicada) -> dict:
+    """Devuelve la informacion que necesita el mapa sin exponer datos privados."""
+    conductor = ruta.conductor.usuario if ruta.conductor else None
+    vehiculo = ruta.vehiculo
+    origen = _coordenada_geografica(ruta.origen_punto)
+    destino = _coordenada_geografica(ruta.destino_punto)
+    return {
+        "id": str(ruta.id),
+        "conductor_nombre": conductor.nombre if conductor else "Conductor",
+        "conductor_apellido": conductor.apellido if conductor else "",
+        "vehiculo_placa": vehiculo.placa if vehiculo else None,
+        "vehiculo_color": vehiculo.color if vehiculo else None,
+        "origen_direccion": ruta.origen_direccion or "Origen",
+        "destino_direccion": ruta.destino_direccion or "Destino",
+        "origen_lat": origen["lat"] if origen else None,
+        "origen_lng": origen["lng"] if origen else None,
+        "destino_lat": destino["lat"] if destino else None,
+        "destino_lng": destino["lng"] if destino else None,
+        "asientos_disponibles": ruta.asientos_disponibles,
+        "estado": ruta.estado,
+        "hora_salida": ruta.hora_salida.isoformat(),
+        "es_simulacion": ruta.es_simulacion,
+        "ruta_geojson": _linea_geografica(ruta.linea_ruta),
+        "distancia_total_km": float(ruta.distancia_total_km or 0),
+        "duracion_estimada_min": ruta.duracion_estimada_min,
+    }
+
+
+async def _obtener_ruta_del_conductor(
+    ruta_id: str, current_user: Usuario, db: AsyncSession
+) -> RutaPublicada:
+    resultado = await db.execute(
+        select(RutaPublicada)
+        .options(selectinload(RutaPublicada.conductor))
+        .where(RutaPublicada.id == ruta_id)
+    )
+    ruta = resultado.scalar_one_or_none()
+    if not ruta:
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+    if not ruta.conductor or ruta.conductor.usuario_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permisos sobre esta ruta")
+    return ruta
 
 
 @router.post(
@@ -54,7 +116,7 @@ async def publicar_ruta(
     # Obtener el vehículo activo del conductor
     res_veh = await db.execute(
         select(Vehiculo).where(
-            Vehiculo.conductor_id == conductor.id, Vehiculo.activo == True
+            Vehiculo.conductor_id == conductor.id, Vehiculo.activo.is_(True)
         )
     )
     vehiculo = res_veh.scalar_one_or_none()
@@ -121,6 +183,87 @@ async def listar_rutas(
 
     result = await db.execute(query)
     return result.scalars().all()
+
+
+@router.get("/disponibles")
+async def listar_rutas_disponibles_movil(db: AsyncSession = Depends(get_db)):
+    """Rutas publicables para el mapa de pasajeros, con geometria y conductor."""
+    resultado = await db.execute(
+        select(RutaPublicada)
+        .options(
+            selectinload(RutaPublicada.conductor).selectinload(Conductor.usuario),
+            selectinload(RutaPublicada.vehiculo),
+        )
+        .where(
+            RutaPublicada.es_simulacion.is_(False),
+            RutaPublicada.estado.in_(["programada", "en_curso"]),
+        )
+        .order_by(RutaPublicada.hora_salida.asc())
+    )
+    return [_ruta_para_movil(ruta) for ruta in resultado.scalars().all()]
+
+
+@router.get("/mias", response_model=List[RutaPublicadaResponse])
+async def listar_mis_rutas(
+    current_user: Usuario = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    resultado = await db.execute(
+        select(RutaPublicada)
+        .join(Conductor, RutaPublicada.conductor_id == Conductor.id)
+        .where(Conductor.usuario_id == current_user.id)
+        .order_by(RutaPublicada.hora_salida.desc())
+    )
+    return resultado.scalars().all()
+
+
+@router.post("/{id}/iniciar", response_model=RutaPublicadaResponse)
+async def iniciar_ruta(
+    id: str,
+    current_user: Usuario = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    ruta = await _obtener_ruta_del_conductor(id, current_user, db)
+    if ruta.estado != "programada":
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se puede iniciar una ruta programada",
+        )
+    ruta.estado = "en_curso"
+    await db.commit()
+    await db.refresh(ruta)
+    return ruta
+
+
+@router.post("/{id}/finalizar", response_model=RutaPublicadaResponse)
+async def finalizar_ruta(
+    id: str,
+    current_user: Usuario = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    ruta = await _obtener_ruta_del_conductor(id, current_user, db)
+    if ruta.estado != "en_curso":
+        raise HTTPException(
+            status_code=400,
+            detail="La ruta debe estar en curso para finalizarla",
+        )
+    pendientes = await db.scalar(
+        select(func.count())
+        .select_from(SolicitudViaje)
+        .where(
+            SolicitudViaje.ruta_publicada_id == ruta.id,
+            SolicitudViaje.estado.in_(["pendiente", "aceptada"]),
+        )
+    )
+    if pendientes:
+        raise HTTPException(
+            status_code=400,
+            detail="Gestiona o completa todas las solicitudes antes de finalizar la ruta",
+        )
+    ruta.estado = "completada"
+    await db.commit()
+    await db.refresh(ruta)
+    return ruta
 
 
 @router.get("/{id}", response_model=RutaPublicadaResponse)

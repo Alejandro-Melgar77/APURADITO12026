@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:apuradito_mobile/core/theme/app_theme.dart';
 import 'package:apuradito_mobile/core/constants/app_constants.dart';
 import 'package:apuradito_mobile/presentation/providers/driver_provider.dart';
+import 'package:apuradito_mobile/presentation/providers/auth_provider.dart';
 
 class PublishRouteScreen extends StatefulWidget {
   const PublishRouteScreen({super.key});
@@ -16,13 +17,19 @@ class PublishRouteScreen extends StatefulWidget {
 class _PublishRouteScreenState extends State<PublishRouteScreen> {
   LatLng? _origen;
   LatLng? _destino;
-  
+
   final _origenCtrl = TextEditingController();
   final _destinoCtrl = TextEditingController();
-  final _costoCtrl = TextEditingController(text: '10.0');
-  
+
   int _asientos = 4;
   DateTime _horaSalida = DateTime.now().add(const Duration(minutes: 15));
+
+  @override
+  void dispose() {
+    _origenCtrl.dispose();
+    _destinoCtrl.dispose();
+    super.dispose();
+  }
 
   void _handleMapTap(TapPosition tapPosition, LatLng point) {
     setState(() {
@@ -43,15 +50,16 @@ class _PublishRouteScreenState extends State<PublishRouteScreen> {
       initialTime: TimeOfDay.fromDateTime(_horaSalida),
     );
     if (picked != null) {
-      setState(() {
-        _horaSalida = DateTime(
-          _horaSalida.year,
-          _horaSalida.month,
-          _horaSalida.day,
-          picked.hour,
-          picked.minute,
-        );
-      });
+      DateTime selected = DateTime(
+        _horaSalida.year,
+        _horaSalida.month,
+        _horaSalida.day,
+        picked.hour,
+        picked.minute,
+      );
+      if (selected.isBefore(DateTime.now()))
+        selected = selected.add(const Duration(days: 1));
+      setState(() => _horaSalida = selected);
     }
   }
 
@@ -65,13 +73,17 @@ class _PublishRouteScreenState extends State<PublishRouteScreen> {
 
     if (_origenCtrl.text.isEmpty || _destinoCtrl.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ingresa las descripciones de las direcciones')),
+        const SnackBar(
+            content: Text('Ingresa las descripciones de las direcciones')),
       );
       return;
     }
 
     final driverProvider = context.read<DriverProvider>();
+    final String? userId = context.read<AuthProvider>().currentUser?.id;
+    if (userId == null) return;
     await driverProvider.publishRoute(
+      userId: userId,
       origenLat: _origen!.latitude,
       origenLng: _origen!.longitude,
       destinoLat: _destino!.latitude,
@@ -79,15 +91,21 @@ class _PublishRouteScreenState extends State<PublishRouteScreen> {
       origenDireccion: _origenCtrl.text,
       destinoDireccion: _destinoCtrl.text,
       asientos: _asientos,
-      costo: double.tryParse(_costoCtrl.text) ?? 10.0,
       horaSalida: _horaSalida,
     );
 
-    if (driverProvider.errorMessage == null && mounted) {
+    if (!mounted) return;
+    if (driverProvider.errorMessage == null) {
+      final String message = driverProvider.lastActionQueued
+          ? 'Ruta guardada. Se publicará cuando recuperes la conexión.'
+          : 'Ruta publicada correctamente.';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
       Navigator.pop(context);
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(driverProvider.errorMessage ?? 'Error desconocido')),
+        SnackBar(
+            content: Text(driverProvider.errorMessage ?? 'Error desconocido')),
       );
     }
   }
@@ -105,7 +123,8 @@ class _PublishRouteScreenState extends State<PublishRouteScreen> {
             height: 300,
             child: FlutterMap(
               options: MapOptions(
-                initialCenter: const LatLng(AppConstants.sczLat, AppConstants.sczLng),
+                initialCenter:
+                    const LatLng(AppConstants.sczLat, AppConstants.sczLng),
                 initialZoom: 13,
                 onTap: _handleMapTap,
               ),
@@ -133,8 +152,13 @@ class _PublishRouteScreenState extends State<PublishRouteScreen> {
                         height: 80,
                         child: const Column(
                           children: [
-                            Icon(Icons.location_on, color: AppTheme.success, size: 40),
-                            Text('Origen', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, backgroundColor: Colors.white70)),
+                            Icon(Icons.location_on,
+                                color: AppTheme.success, size: 40),
+                            Text('Origen',
+                                style: TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold,
+                                    backgroundColor: Colors.white70)),
                           ],
                         ),
                       ),
@@ -145,8 +169,13 @@ class _PublishRouteScreenState extends State<PublishRouteScreen> {
                         height: 80,
                         child: const Column(
                           children: [
-                            Icon(Icons.location_on, color: AppTheme.error, size: 40),
-                            Text('Destino', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, backgroundColor: Colors.white70)),
+                            Icon(Icons.location_on,
+                                color: AppTheme.error, size: 40),
+                            Text('Destino',
+                                style: TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold,
+                                    backgroundColor: Colors.white70)),
                           ],
                         ),
                       ),
@@ -171,7 +200,8 @@ class _PublishRouteScreenState extends State<PublishRouteScreen> {
                     controller: _origenCtrl,
                     decoration: const InputDecoration(
                       labelText: 'Descripción del Origen',
-                      prefixIcon: Icon(Icons.my_location, color: AppTheme.success),
+                      prefixIcon:
+                          Icon(Icons.my_location, color: AppTheme.success),
                     ),
                     style: const TextStyle(color: AppTheme.textPrimary),
                   ),
@@ -191,7 +221,9 @@ class _PublishRouteScreenState extends State<PublishRouteScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Asientos', style: TextStyle(color: AppTheme.textSecondary)),
+                            const Text('Asientos',
+                                style:
+                                    TextStyle(color: AppTheme.textSecondary)),
                             Slider(
                               value: _asientos.toDouble(),
                               min: 1,
@@ -199,20 +231,19 @@ class _PublishRouteScreenState extends State<PublishRouteScreen> {
                               divisions: 3,
                               label: _asientos.toString(),
                               activeColor: AppTheme.primaryLight,
-                              onChanged: (val) => setState(() => _asientos = val.toInt()),
+                              onChanged: (val) =>
+                                  setState(() => _asientos = val.toInt()),
                             ),
                           ],
                         ),
                       ),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _costoCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Precio (Bs)',
-                            prefixIcon: Icon(Icons.attach_money, color: AppTheme.warning),
+                      const Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(left: 16),
+                          child: Text(
+                            'El costo se calcula de forma transparente según distancia y vehículo.',
+                            style: TextStyle(color: AppTheme.textSecondary),
                           ),
-                          style: const TextStyle(color: AppTheme.textPrimary),
                         ),
                       ),
                     ],
@@ -220,7 +251,8 @@ class _PublishRouteScreenState extends State<PublishRouteScreen> {
                   const SizedBox(height: 24),
                   OutlinedButton.icon(
                     icon: const Icon(Icons.access_time),
-                    label: Text('Salida: ${_horaSalida.hour}:${_horaSalida.minute.toString().padLeft(2, '0')}'),
+                    label: Text(
+                        'Salida: ${_horaSalida.hour}:${_horaSalida.minute.toString().padLeft(2, '0')}'),
                     onPressed: _selectTime,
                   ),
                   const SizedBox(height: 32),
@@ -229,7 +261,8 @@ class _PublishRouteScreenState extends State<PublishRouteScreen> {
                       return ElevatedButton(
                         onPressed: provider.isLoading ? null : _publish,
                         child: provider.isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const CircularProgressIndicator(
+                                color: Colors.white)
                             : const Text('Publicar Ruta'),
                       );
                     },

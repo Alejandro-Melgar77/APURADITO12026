@@ -29,7 +29,8 @@ class _ManageRequestsScreenState extends State<ManageRequestsScreen> {
       body: Consumer<DriverProvider>(
         builder: (context, provider, child) {
           if (provider.isLoading) {
-            return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
+            return const Center(
+                child: CircularProgressIndicator(color: AppTheme.primary));
           }
 
           if (provider.pendingRequests.isEmpty) {
@@ -41,7 +42,8 @@ class _ManageRequestsScreenState extends State<ManageRequestsScreen> {
                   SizedBox(height: 16),
                   Text(
                     'Sin solicitudes pendientes',
-                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
+                    style:
+                        TextStyle(color: AppTheme.textSecondary, fontSize: 16),
                   ),
                 ],
               ),
@@ -66,7 +68,9 @@ class _ManageRequestsScreenState extends State<ManageRequestsScreen> {
                           radius: 28,
                           backgroundColor: AppTheme.primary.withOpacity(0.2),
                           child: Text(
-                            req.pasajeroNombre?.substring(0, 1).toUpperCase() ?? 'P',
+                            (req.pasajeroNombre?.trim().isNotEmpty ?? false)
+                                ? req.pasajeroNombre!.trim()[0].toUpperCase()
+                                : 'P',
                             style: const TextStyle(
                               color: AppTheme.primaryLight,
                               fontSize: 24,
@@ -90,23 +94,36 @@ class _ManageRequestsScreenState extends State<ManageRequestsScreen> {
                               const SizedBox(height: 4),
                               Text(
                                 '${req.costoCalculadoBs.toStringAsFixed(2)} Bs • ${req.metodoPago}',
-                                style: const TextStyle(color: AppTheme.textSecondary),
+                                style: const TextStyle(
+                                    color: AppTheme.textSecondary),
                               ),
                             ],
                           ),
                         ),
-                        Column(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.check_circle, color: AppTheme.success, size: 32),
-                              onPressed: () => provider.acceptRequest(req.id),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.cancel, color: AppTheme.error, size: 32),
-                              onPressed: () => provider.rejectRequest(req.id),
-                            ),
-                          ],
-                        )
+                        if (req.estado == 'pendiente')
+                          Column(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.check_circle,
+                                    color: AppTheme.success, size: 32),
+                                tooltip: 'Aceptar',
+                                onPressed: () => provider.acceptRequest(req.id),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.cancel,
+                                    color: AppTheme.error, size: 32),
+                                tooltip: 'Rechazar',
+                                onPressed: () => provider.rejectRequest(req.id),
+                              ),
+                            ],
+                          )
+                        else if (req.estado == 'aceptada')
+                          IconButton(
+                            icon: const Icon(Icons.flag_circle,
+                                color: AppTheme.primaryLight, size: 32),
+                            tooltip: 'Completar viaje',
+                            onPressed: () => provider.completeRequest(req.id),
+                          )
                       ],
                     ),
                   ),

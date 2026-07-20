@@ -1,4 +1,4 @@
-import time
+import uuid
 import io
 import base64
 import json
@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
+from app.core.config import settings
 from app.api.deps import get_current_active_user
 from app.models.usuario import Usuario
 from app.models.recarga_coins import RecargaCoins
@@ -47,8 +48,7 @@ async def iniciar_recarga(
 ):
     # Generar referencia única
     user_id_hex = str(current_user.id).replace("-", "")[:8].upper()
-    timestamp = int(time.time())
-    referencia = f"APU-{user_id_hex}-{timestamp}"
+    referencia = f"APU-{user_id_hex}-{uuid.uuid4().hex[:12].upper()}"
 
     # Datos para el código QR
     qr_payload = {
@@ -90,10 +90,15 @@ async def confirmar_recarga(
     current_user: Usuario = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if settings.ENVIRONMENT == "production":
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Las recargas deben confirmarse mediante un webhook del proveedor de pagos en produccion",
+        )
     # Buscar recarga por referencia
     result = await db.execute(
         select(RecargaCoins).where(
-            RecargaCoins.referencia_unica == req.referencia,
+            RecargaCoins.referencia_unica == req.referencia.strip().upper(),
             RecargaCoins.usuario_id == current_user.id,
         )
     )
@@ -208,7 +213,7 @@ async def solicitar_retiro(
         usuario_id=current_user.id,
         monto_bs=-req.monto_coins,
         coins_acreditados=-req.monto_coins,
-        referencia_unica=f"RET-{str(current_user.id).replace('-', '')[:8].upper()}-{int(time.time())}",
+        referencia_unica=f"RET-{str(current_user.id).replace('-', '')[:8].upper()}-{uuid.uuid4().hex[:12].upper()}",
         estado="pendiente",
         verificacion_automatica=False,  # Requiere que el admin le transfiera dinero real y apruebe
     )

@@ -13,6 +13,7 @@ class Pago(Base):
         UUID(as_uuid=True),
         ForeignKey("solicitudes_viaje.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
     )
     pagador_id = Column(
         UUID(as_uuid=True),

@@ -28,21 +28,26 @@ const DashboardPage: React.FC = () => {
   const [periodo, setPeriodo] = useState('7dias')
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     const fetchDashboard = async () => {
       setLoading(true)
+      setError(null)
       try {
         const response = await api.get(`/api/v1/reportes/dashboard?periodo=${periodo}`)
         setData(response.data)
       } catch (error) {
         console.error('Error al cargar datos del dashboard:', error)
+        setData(null)
+        setError('No se pudieron cargar las estadísticas. Verifica la conexión e inténtalo nuevamente.')
       } finally {
         setLoading(false)
       }
     }
     fetchDashboard()
-  }, [periodo])
+  }, [periodo, refreshKey])
 
   return (
     <div className="flex flex-col gap-8">
@@ -69,6 +74,17 @@ const DashboardPage: React.FC = () => {
           <option value="año">Este año</option>
         </select>
       </div>
+
+      {error && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-300" role="alert">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>{error}</span>
+            <button type="button" className="btn btn-secondary !px-3 !py-1.5 text-xs" onClick={() => setRefreshKey((value) => value + 1)}>
+              Reintentar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Grid de KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

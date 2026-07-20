@@ -5,8 +5,8 @@ from uuid import UUID
 
 
 class Coordenada(BaseModel):
-    lon: float
-    lat: float
+    lon: float = Field(..., ge=-180, le=180)
+    lat: float = Field(..., ge=-90, le=90)
 
 
 class RutaPublicadaBase(BaseModel):
@@ -23,7 +23,7 @@ class RutaPublicadaBase(BaseModel):
 class RutaPublicadaCreate(RutaPublicadaBase):
     origen_coor: Coordenada
     destino_coor: Coordenada
-    linea_ruta_coor: List[Coordenada]  # Lista de puntos para armar la LINESTRING
+    linea_ruta_coor: List[Coordenada] = Field(..., min_length=2)
 
 
 class RutaPublicadaResponse(RutaPublicadaBase):
@@ -42,5 +42,5 @@ class BuscarRutaRequest(BaseModel):
     lat_pasajero: float
     lon_destino: float
     lat_destino: float
-    radio_max_m: Optional[float] = None
-    limite: Optional[int] = None
+    radio_max_m: Optional[float] = Field(None, gt=0, le=10_000)
+    limite: Optional[int] = Field(None, ge=1, le=50)

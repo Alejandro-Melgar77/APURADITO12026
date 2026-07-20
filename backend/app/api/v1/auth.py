@@ -53,6 +53,15 @@ async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado"
         )
 
+    if user.estado != "activo":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Tu cuenta aun esta pendiente de verificacion. "
+                "Completa la validacion de identidad y vehiculo para activarla."
+            ),
+        )
+
     # Generar tokens
     user_id_str = str(user.id)
     access_token = create_access_token(data={"sub": user_id_str, "rol": user.rol})
@@ -81,6 +90,13 @@ async def registrar_pasajero(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El correo electrónico ya está registrado",
         )
+
+    if req.ci_carnet:
+        result_ci = await db.execute(
+            select(Usuario).where(Usuario.ci_carnet == req.ci_carnet)
+        )
+        if result_ci.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="El carnet ya esta registrado")
 
     # Crear usuario pasajero
     nuevo_usuario = Usuario(
@@ -116,6 +132,12 @@ async def registrar_conductor(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El correo electrónico ya está registrado",
         )
+
+    result_ci = await db.execute(
+        select(Usuario).where(Usuario.ci_carnet == req.ci_carnet)
+    )
+    if result_ci.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="El carnet ya esta registrado")
 
     # Verificar placa única
     res_placa = await db.execute(

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from typing import Optional
 from app.core.database import get_db
 from app.api.deps import get_current_admin
@@ -26,14 +27,15 @@ async def listar_conductores(
 ):
     query = (
         select(Conductor)
+        .options(selectinload(Conductor.usuario))
         .join(Usuario, Conductor.usuario_id == Usuario.id)
         .where(Usuario.estado != "eliminado")
     )
 
     if estado_cuenta == "congelado":
-        query = query.where(Conductor.cuenta_congelada == True)
+        query = query.where(Conductor.cuenta_congelada.is_(True))
     elif estado_cuenta == "activo":
-        query = query.where(Conductor.cuenta_congelada == False)
+        query = query.where(Conductor.cuenta_congelada.is_(False))
 
     if busqueda:
         busqueda_like = f"%{busqueda}%"
@@ -81,7 +83,11 @@ async def obtener_conductor(
     current_user: Usuario = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Conductor).where(Conductor.id == id))
+    result = await db.execute(
+        select(Conductor)
+        .options(selectinload(Conductor.usuario))
+        .where(Conductor.id == id)
+    )
     c = result.scalar_one_or_none()
 
     if not c or c.usuario.estado == "eliminado":
@@ -115,7 +121,11 @@ async def verificar_facial_conductor(
     current_user: Usuario = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Conductor).where(Conductor.id == id))
+    result = await db.execute(
+        select(Conductor)
+        .options(selectinload(Conductor.usuario))
+        .where(Conductor.id == id)
+    )
     c = result.scalar_one_or_none()
 
     if not c:
@@ -167,7 +177,11 @@ async def verificar_morosidad_conductores(
 
 
 @router.get("/{id}/vehiculos")
-async def listar_vehiculos_conductor(id: str, db: AsyncSession = Depends(get_db)):
+async def listar_vehiculos_conductor(
+    id: str,
+    current_user: Usuario = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
 
     result = await db.execute(select(Vehiculo).where(Vehiculo.conductor_id == id))
     vehiculos = result.scalars().all()

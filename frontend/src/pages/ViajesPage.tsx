@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { MapContainer, TileLayer } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { getWebSocketBaseURL } from '../services/api'
+import { useEnvStore } from '../store/envStore'
 import { Wifi, WifiOff, MapPin } from 'lucide-react'
 
 interface RutaActiva {
@@ -17,13 +19,17 @@ interface RutaActiva {
   hora_salida: string
 }
 
+const isViajesActivosMessage = (data: unknown): data is { tipo: string; data?: RutaActiva[] } =>
+  typeof data === 'object' && data !== null && 'tipo' in data && 'data' in data
+
 const ViajesPage: React.FC = () => {
   const [rutas, setRutas] = useState<RutaActiva[]>([])
+  const env = useEnvStore((state) => state.env)
 
-  const wsBase = (import.meta.env.VITE_API_URL_PROD || 'http://localhost:8000').replace(/^http/, 'ws').replace(/\/$/, '')
+  const wsBase = getWebSocketBaseURL(env)
   const { isConnected } = useWebSocket(`${wsBase}/ws/viajes`, {
     onMessage: (data) => {
-      if (data.tipo === 'viajes_activos' && data.data) {
+      if (isViajesActivosMessage(data) && data.tipo === 'viajes_activos' && Array.isArray(data.data)) {
         setRutas(data.data)
       }
     }

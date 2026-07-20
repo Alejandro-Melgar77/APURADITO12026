@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
+from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.api.deps import get_current_active_user
 from app.models.usuario import Usuario
@@ -15,10 +16,89 @@ from app.schemas.viaje import (
     SolicitudViajeResponse,
     CalificarRequest,
 )
-from app.services.calculo_precio import calcular_penalizacion, obtener_config
+from app.services.calculo_precio import (
+    calcular_costo_viaje,
+    calcular_penalizacion,
+    obtener_config,
+)
 from datetime import datetime
 
 router = APIRouter()
+
+
+def _solicitud_para_movil(solicitud: SolicitudViaje) -> dict:
+    pasajero = solicitud.pasajero
+    ruta = solicitud.ruta_publicada
+    conductor = ruta.conductor.usuario if ruta and ruta.conductor else None
+    return {
+        "id": str(solicitud.id),
+        "pasajero_id": str(solicitud.pasajero_id),
+        "pasajero_nombre": (
+            f"{pasajero.nombre} {pasajero.apellido}" if pasajero else "Pasajero"
+        ),
+        "ruta_publicada_id": str(solicitud.ruta_publicada_id),
+        "origen_direccion": ruta.origen_direccion if ruta else None,
+        "destino_direccion": ruta.destino_direccion if ruta else None,
+        "conductor_id": str(conductor.id) if conductor else None,
+        "conductor_nombre": (
+            f"{conductor.nombre} {conductor.apellido}" if conductor else None
+        ),
+        "distancia_viaje_km": float(solicitud.distancia_viaje_km or 0),
+        "costo_calculado_bs": float(solicitud.costo_calculado_bs or 0),
+        "estado": solicitud.estado,
+        "metodo_pago": solicitud.metodo_pago,
+        "creado_en": solicitud.creado_en.isoformat(),
+    }
+
+
+@router.get("/mis-solicitudes")
+async def listar_mis_solicitudes(
+    current_user: Usuario = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    resultado = await db.execute(
+        select(SolicitudViaje)
+        .options(
+            selectinload(SolicitudViaje.pasajero),
+            selectinload(SolicitudViaje.ruta_publicada)
+            .selectinload(RutaPublicada.conductor)
+            .selectinload(Conductor.usuario),
+        )
+        .where(SolicitudViaje.pasajero_id == current_user.id)
+        .order_by(SolicitudViaje.creado_en.desc())
+    )
+    return [_solicitud_para_movil(s) for s in resultado.scalars().all()]
+
+
+@router.get("/rutas/{ruta_id}/solicitudes")
+async def listar_solicitudes_de_ruta(
+    ruta_id: str,
+    current_user: Usuario = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    ruta_resultado = await db.execute(
+        select(RutaPublicada)
+        .options(selectinload(RutaPublicada.conductor))
+        .where(RutaPublicada.id == ruta_id)
+    )
+    ruta = ruta_resultado.scalar_one_or_none()
+    if not ruta:
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+    if not ruta.conductor or ruta.conductor.usuario_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permisos sobre esta ruta")
+
+    resultado = await db.execute(
+        select(SolicitudViaje)
+        .options(
+            selectinload(SolicitudViaje.pasajero),
+            selectinload(SolicitudViaje.ruta_publicada)
+            .selectinload(RutaPublicada.conductor)
+            .selectinload(Conductor.usuario),
+        )
+        .where(SolicitudViaje.ruta_publicada_id == ruta.id)
+        .order_by(SolicitudViaje.creado_en.asc())
+    )
+    return [_solicitud_para_movil(s) for s in resultado.scalars().all()]
 
 
 @router.post(
@@ -33,17 +113,24 @@ async def solicitar_viaje(
 ):
     # Validar que no se solicite a sí mismo
     res_ruta = await db.execute(
-        select(RutaPublicada).where(RutaPublicada.id == req.ruta_publicada_id)
+        select(RutaPublicada)
+        .options(selectinload(RutaPublicada.vehiculo))
+        .where(RutaPublicada.id == req.ruta_publicada_id)
     )
     ruta = res_ruta.scalar_one_or_none()
 
     if not ruta:
         raise HTTPException(status_code=404, detail="La ruta publicada no existe")
+    if ruta.estado not in ["programada", "en_curso"]:
+        raise HTTPException(status_code=400, detail="La ruta ya no acepta solicitudes")
 
     res_cond = await db.execute(
         select(Conductor).where(Conductor.id == ruta.conductor_id)
     )
     conductor = res_cond.scalar_one_or_none()
+
+    if not conductor or conductor.cuenta_congelada:
+        raise HTTPException(status_code=400, detail="El conductor no esta disponible")
 
     if conductor and conductor.usuario_id == current_user.id:
         raise HTTPException(
@@ -56,6 +143,33 @@ async def solicitar_viaje(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No quedan asientos disponibles en este viaje",
         )
+
+    existente = await db.execute(
+        select(SolicitudViaje).where(
+            SolicitudViaje.pasajero_id == current_user.id,
+            SolicitudViaje.ruta_publicada_id == ruta.id,
+            SolicitudViaje.estado.in_(["pendiente", "aceptada"]),
+        )
+    )
+    if existente.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya tienes una solicitud activa para esta ruta",
+        )
+
+    if not ruta.vehiculo:
+        raise HTTPException(status_code=400, detail="La ruta no tiene un vehiculo valido")
+    asientos_ocupados = max(
+        1, ruta.vehiculo.asientos_totales - 1 - ruta.asientos_disponibles + 1
+    )
+    precio = await calcular_costo_viaje(
+        distancia_km=req.distancia_viaje_km,
+        tipo_vehiculo=ruta.vehiculo.tipo,
+        tipo_combustible=ruta.vehiculo.combustible,
+        asientos_ocupados=asientos_ocupados,
+        db=db,
+    )
+    costo_calculado_bs = precio["costo_total_bs"]
 
     # Formatear PostGIS POINTs
     pto_abordaje_wkt = (
@@ -71,10 +185,10 @@ async def solicitar_viaje(
 
     # Validar saldo si paga con coins
     if req.metodo_pago == "coins":
-        if float(current_user.saldo_coins or 0) < req.costo_calculado_bs:
+        if float(current_user.saldo_coins or 0) < costo_calculado_bs:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Saldo de Coins insuficiente ({current_user.saldo_coins} Coins) para el costo estimado de {req.costo_calculado_bs} Bs.",
+                detail=f"Saldo de Coins insuficiente ({current_user.saldo_coins} Coins) para el costo estimado de {costo_calculado_bs} Bs.",
             )
 
     # Crear la solicitud
@@ -87,7 +201,7 @@ async def solicitar_viaje(
         distancia_caminata_abordaje_m=req.distancia_caminata_abordaje_m,
         distancia_caminata_desabordaje_m=req.distancia_caminata_desabordaje_m,
         distancia_viaje_km=req.distancia_viaje_km,
-        costo_calculado_bs=req.costo_calculado_bs,
+        costo_calculado_bs=costo_calculado_bs,
         estado="pendiente",
         metodo_pago=req.metodo_pago,
     )
@@ -98,7 +212,7 @@ async def solicitar_viaje(
     notif = Notificacion(
         usuario_id=conductor.usuario_id,
         titulo="Nueva solicitud de viaje",
-        mensaje=f"El pasajero {current_user.nombre} {current_user.apellido} solicita unirse a tu ruta por un valor de {req.costo_calculado_bs} Bs.",
+        mensaje=f"El pasajero {current_user.nombre} {current_user.apellido} solicita unirse a tu ruta por un valor de {costo_calculado_bs} Bs.",
         tipo="solicitud_viaje",
         leida=False,
     )
@@ -116,7 +230,9 @@ async def aceptar_solicitud(
     db: AsyncSession = Depends(get_db),
 ):
     # Buscar solicitud
-    result = await db.execute(select(SolicitudViaje).where(SolicitudViaje.id == id))
+    result = await db.execute(
+        select(SolicitudViaje).where(SolicitudViaje.id == id).with_for_update()
+    )
     solicitud = result.scalar_one_or_none()
 
     if not solicitud:
@@ -130,9 +246,17 @@ async def aceptar_solicitud(
 
     # Validar que pertenezca al conductor actual
     res_ruta = await db.execute(
-        select(RutaPublicada).where(RutaPublicada.id == solicitud.ruta_publicada_id)
+        select(RutaPublicada)
+        .options(
+            selectinload(RutaPublicada.conductor).selectinload(Conductor.usuario)
+        )
+        .where(RutaPublicada.id == solicitud.ruta_publicada_id)
+        .with_for_update()
     )
     ruta = res_ruta.scalar_one_or_none()
+
+    if not ruta:
+        raise HTTPException(status_code=404, detail="La ruta publicada no existe")
 
     res_cond = await db.execute(
         select(Conductor).where(Conductor.id == ruta.conductor_id)
@@ -145,7 +269,7 @@ async def aceptar_solicitud(
             detail="No tienes autorización para aceptar esta solicitud",
         )
 
-    if ruta.asientos_disponibles <= 0:
+    if ruta.estado not in ["programada", "en_curso"] or ruta.asientos_disponibles <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No hay más asientos disponibles en tu vehículo",
@@ -176,7 +300,9 @@ async def rechazar_solicitud(
     current_user: Usuario = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(SolicitudViaje).where(SolicitudViaje.id == id))
+    result = await db.execute(
+        select(SolicitudViaje).where(SolicitudViaje.id == id).with_for_update()
+    )
     solicitud = result.scalar_one_or_none()
 
     if not solicitud:
@@ -186,10 +312,16 @@ async def rechazar_solicitud(
         raise HTTPException(status_code=400, detail="La solicitud no está pendiente")
 
     res_ruta = await db.execute(
-        select(RutaPublicada).where(RutaPublicada.id == solicitud.ruta_publicada_id)
+        select(RutaPublicada)
+        .options(
+            selectinload(RutaPublicada.conductor).selectinload(Conductor.usuario)
+        )
+        .where(RutaPublicada.id == solicitud.ruta_publicada_id)
     )
     ruta = res_ruta.scalar_one_or_none()
 
+    if not ruta:
+        raise HTTPException(status_code=404, detail="La ruta publicada no existe")
     if ruta.conductor.usuario_id != current_user.id:
         raise HTTPException(status_code=403, detail="Operación no autorizada")
 
@@ -216,7 +348,9 @@ async def cancelar_viaje(
     current_user: Usuario = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(SolicitudViaje).where(SolicitudViaje.id == id))
+    result = await db.execute(
+        select(SolicitudViaje).where(SolicitudViaje.id == id).with_for_update()
+    )
     solicitud = result.scalar_one_or_none()
 
     if not solicitud:
@@ -228,9 +362,17 @@ async def cancelar_viaje(
         )
 
     res_ruta = await db.execute(
-        select(RutaPublicada).where(RutaPublicada.id == solicitud.ruta_publicada_id)
+        select(RutaPublicada)
+        .options(
+            selectinload(RutaPublicada.conductor).selectinload(Conductor.usuario)
+        )
+        .where(RutaPublicada.id == solicitud.ruta_publicada_id)
+        .with_for_update()
     )
     ruta = res_ruta.scalar_one_or_none()
+
+    if not ruta:
+        raise HTTPException(status_code=404, detail="La ruta publicada no existe")
 
     es_pasajero = solicitud.pasajero_id == current_user.id
     es_conductor = ruta.conductor.usuario_id == current_user.id
@@ -255,9 +397,12 @@ async def cancelar_viaje(
 
         # Descontar de coins al cancelador
         if es_pasajero:
-            current_user.saldo_coins = (
-                float(current_user.saldo_coins or 0) - penalizacion
-            )
+            if float(current_user.saldo_coins or 0) < penalizacion:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Saldo insuficiente para aplicar la penalizacion de cancelacion",
+                )
+            current_user.saldo_coins = float(current_user.saldo_coins or 0) - penalizacion
             # Notificar al conductor
             notif = Notificacion(
                 usuario_id=ruta.conductor.usuario_id,
@@ -270,9 +415,12 @@ async def cancelar_viaje(
         else:
             # El conductor cancela, descontamos del saldo del conductor de su cuenta de usuario
             conductor_user = ruta.conductor.usuario
-            conductor_user.saldo_coins = (
-                float(conductor_user.saldo_coins or 0) - penalizacion
-            )
+            if float(conductor_user.saldo_coins or 0) < penalizacion:
+                raise HTTPException(
+                    status_code=400,
+                    detail="El conductor no tiene saldo para la penalizacion de cancelacion",
+                )
+            conductor_user.saldo_coins = float(conductor_user.saldo_coins or 0) - penalizacion
             # Notificar al pasajero
             notif = Notificacion(
                 usuario_id=solicitud.pasajero_id,
@@ -294,7 +442,9 @@ async def completar_viaje(
     current_user: Usuario = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(SolicitudViaje).where(SolicitudViaje.id == id))
+    result = await db.execute(
+        select(SolicitudViaje).where(SolicitudViaje.id == id).with_for_update()
+    )
     solicitud = result.scalar_one_or_none()
 
     if not solicitud:
@@ -307,9 +457,23 @@ async def completar_viaje(
         )
 
     res_ruta = await db.execute(
-        select(RutaPublicada).where(RutaPublicada.id == solicitud.ruta_publicada_id)
+        select(RutaPublicada)
+        .options(
+            selectinload(RutaPublicada.conductor).selectinload(Conductor.usuario)
+        )
+        .where(RutaPublicada.id == solicitud.ruta_publicada_id)
+        .with_for_update()
     )
     ruta = res_ruta.scalar_one_or_none()
+
+    if not ruta:
+        raise HTTPException(status_code=404, detail="La ruta publicada no existe")
+
+    if ruta.estado != "en_curso":
+        raise HTTPException(
+            status_code=400,
+            detail="La ruta debe estar en curso para completar un viaje",
+        )
 
     # Validar que sea completado por el conductor
     if ruta.conductor.usuario_id != current_user.id:
@@ -341,8 +505,10 @@ async def completar_viaje(
     if solicitud.metodo_pago == "coins":
         # Validar saldo del pasajero
         if float(pasajero.saldo_coins or 0) < monto_total:
-            # Si no tiene suficiente saldo al final, forzamos cobro o pasamos a deuda (por simplicidad, asumimos que se debita)
-            pass
+            raise HTTPException(
+                status_code=400,
+                detail="El pasajero ya no tiene saldo suficiente para completar el viaje",
+            )
 
         pasajero.saldo_coins = float(pasajero.saldo_coins or 0) - monto_total
         conductor_user.saldo_coins = float(conductor_user.saldo_coins or 0) + monto_neto
@@ -426,6 +592,30 @@ async def calificar_viaje(
     if solicitud.estado != "completada":
         raise HTTPException(
             status_code=400, detail="Solo se pueden calificar viajes completados"
+        )
+
+    res_ruta = await db.execute(
+        select(RutaPublicada)
+        .options(
+            selectinload(RutaPublicada.conductor).selectinload(Conductor.usuario)
+        )
+        .where(RutaPublicada.id == solicitud.ruta_publicada_id)
+    )
+    ruta = res_ruta.scalar_one_or_none()
+    if not ruta:
+        raise HTTPException(status_code=404, detail="La ruta publicada no existe")
+
+    conductor_user_id = ruta.conductor.usuario_id
+    if current_user.id == solicitud.pasajero_id:
+        calificado_esperado = conductor_user_id
+    elif current_user.id == conductor_user_id:
+        calificado_esperado = solicitud.pasajero_id
+    else:
+        raise HTTPException(status_code=403, detail="No participaste en este viaje")
+    if req.calificado_id != calificado_esperado:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo puedes calificar a la otra persona participante del viaje",
         )
 
     # Verificar que el calificador ya no haya calificado este viaje

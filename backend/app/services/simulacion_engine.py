@@ -32,7 +32,8 @@ class SimulacionEngine:
         
         waypoints = []
         try:
-            async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(total=5)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(url) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -107,7 +108,6 @@ class SimulacionEngine:
                         ruta = await session.get(RutaPublicada, ruta_id)
                         if ruta:
                             ruta.estado = "completada"
-                            await session.delete(ruta)
                     await session.commit()
 
             await asyncio.sleep(5)

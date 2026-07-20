@@ -189,7 +189,8 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: bgSurface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusMd),
           borderSide: const BorderSide(color: border),
@@ -231,7 +232,8 @@ class AppTheme {
       snackBarTheme: SnackBarThemeData(
         backgroundColor: bgSurfaceHigh,
         contentTextStyle: const TextStyle(color: textPrimary),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMd)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radiusMd)),
         behavior: SnackBarBehavior.floating,
       ),
     );

@@ -1,115 +1,91 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:provider/provider.dart';
 import 'package:apuradito_mobile/core/theme/app_theme.dart';
-import 'package:apuradito_mobile/core/constants/app_constants.dart';
 import 'package:apuradito_mobile/presentation/providers/driver_provider.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+/// Vista de apoyo para una ruta en curso. El recorrido real se consulta en la
+/// pantalla de pasajeros; aquí el conductor gestiona personas y cierre.
 class ActiveRideScreen extends StatelessWidget {
   const ActiveRideScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<DriverProvider>();
+    final DriverProvider provider = context.watch<DriverProvider>();
     final route = provider.activeRoute;
-
     if (route == null) {
-      return const Scaffold(
-        backgroundColor: AppTheme.bgDark,
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ruta activa')),
         body: Center(
-          child: Text('No hay ruta activa', style: TextStyle(color: AppTheme.textPrimary)),
+          child: TextButton(
+            onPressed: () => context.go('/driver'),
+            child: const Text('No hay una ruta activa. Volver al inicio'),
+          ),
         ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Viaje en Curso'),
-        backgroundColor: AppTheme.bgDark,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: FlutterMap(
-              options: const MapOptions(
-                initialCenter: latlong2.LatLng(AppConstants.sczLat, AppConstants.sczLng),
-                initialZoom: 14,
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: AppConstants.osmTileUrl,
-                  userAgentPackageName: 'com.apuradito.mobile',
-                ),
-                // Aquí irían los polyline de routePolyline si es un ActiveRouteModel
-                // Para PublishedRouteModel dibujamos una simulación.
-              ],
-            ),
+      appBar: AppBar(title: const Text('Ruta en curso')),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: <Widget>[
+          const Icon(Icons.directions_car,
+              size: 64, color: AppTheme.primaryLight),
+          const SizedBox(height: 20),
+          _RouteStop(
+            icon: Icons.my_location,
+            label: 'Origen',
+            value: route.origenDireccion,
+            color: AppTheme.success,
           ),
-          Container(
-            padding: const EdgeInsets.all(24.0),
-            decoration: const BoxDecoration(
-              color: AppTheme.bgSurface,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(AppTheme.radiusXl),
-                topRight: Radius.circular(AppTheme.radiusXl),
-              ),
-              boxShadow: [
-                BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, -4))
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.directions_car, color: AppTheme.primaryLight, size: 28),
-                    SizedBox(width: 12),
-                    Text(
-                      'En Ruta',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Icon(Icons.my_location, color: AppTheme.success),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(route.origenDireccion, style: const TextStyle(color: AppTheme.textPrimary))),
-                  ],
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  child: Icon(Icons.more_vert, color: AppTheme.textMuted, size: 16),
-                ),
-                Row(
-                  children: [
-                    const Icon(Icons.place, color: AppTheme.error),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(route.destinoDireccion, style: const TextStyle(color: AppTheme.textPrimary))),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.success,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  onPressed: () async {
-                    await provider.finishRoute();
-                    if (context.mounted) Navigator.pop(context);
-                  },
-                  child: const Text('Finalizar Viaje', style: TextStyle(fontSize: 18)),
-                ),
-              ],
-            ),
-          )
+          const Padding(
+            padding: EdgeInsets.only(left: 16),
+            child: Icon(Icons.more_vert, color: AppTheme.textMuted),
+          ),
+          _RouteStop(
+            icon: Icons.place,
+            label: 'Destino',
+            value: route.destinoDireccion,
+            color: AppTheme.error,
+          ),
+          const SizedBox(height: 20),
+          Text('Estado: ${route.estado}', textAlign: TextAlign.center),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => context.push('/driver/requests'),
+            icon: const Icon(Icons.people_alt),
+            label: const Text('Gestionar pasajeros'),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: provider.isLoading ? null : provider.finishRoute,
+            icon: const Icon(Icons.flag),
+            label: const Text('Finalizar ruta'),
+          ),
         ],
       ),
     );
   }
+}
+
+class _RouteStop extends StatelessWidget {
+  const _RouteStop({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        leading: Icon(icon, color: color),
+        title: Text(label),
+        subtitle: Text(value),
+      );
 }

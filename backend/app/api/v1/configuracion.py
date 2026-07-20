@@ -110,7 +110,10 @@ CONFIGURACION_INICIAL = [
 
 
 @router.get("/")
-async def obtener_configuraciones(db: AsyncSession = Depends(get_db)):
+async def obtener_configuraciones(
+    current_user: Usuario = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(select(ConfiguracionGlobal))
     configs = result.scalars().all()
 

@@ -1,222 +1,133 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:apuradito_mobile/core/constants/app_constants.dart';
+import 'package:apuradito_mobile/core/network/connectivity_service.dart';
 import 'package:apuradito_mobile/data/models/route_model.dart';
 import 'package:apuradito_mobile/presentation/providers/map_provider.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
 
-class RideTrackingScreen extends StatefulWidget {
-  final String routeId;
-
+class RideTrackingScreen extends StatelessWidget {
   const RideTrackingScreen({super.key, required this.routeId});
 
-  @override
-  State<RideTrackingScreen> createState() => _RideTrackingScreenState();
-}
-
-class _RideTrackingScreenState extends State<RideTrackingScreen> {
-  final MapController _mapController = MapController();
-
-  void _showRatingDialog() {
-    int _rating = 5;
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: const Color(0xFF1A1035),
-              title: const Text('Califica tu viaje', style: TextStyle(color: Colors.white)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(5, (index) {
-                      return IconButton(
-                        icon: Icon(
-                          index < _rating ? Icons.star : Icons.star_border,
-                          color: Colors.amber,
-                          size: 32,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _rating = index + 1;
-                          });
-                        },
-                      );
-                    }),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pop(); // Volver al inicio
-                  },
-                  child: const Text('Enviar', style: TextStyle(color: Color(0xFF7C3AED))),
-                ),
-              ],
-            );
-          }
-        );
-      },
-    );
-  }
+  final String routeId;
 
   @override
   Widget build(BuildContext context) {
-    final mapProvider = context.watch<MapProvider>();
-    final ActiveRouteModel? route = mapProvider.activeRoutes.firstWhere(
-      (r) => r.id == widget.routeId,
-      orElse: () => ActiveRouteModel(
-        id: widget.routeId,
-        conductorNombre: '',
-        conductorApellido: '',
-        origenDireccion: '',
-        destinoDireccion: '',
-        asientosDisponibles: 0,
-        estado: '',
-        horaSalida: '',
-        lat: AppConstants.sczLat,
-        lng: AppConstants.sczLng,
-      ),    );
-
-    final points = route?.routePolyline ?? [];
-    final currentLat = route?.lat ?? AppConstants.sczLat;
-    final currentLng = route?.lng ?? AppConstants.sczLng;
-
-    return Scaffold(
-      body: Stack(
-        children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: LatLng(currentLat, currentLng),
-              initialZoom: 15.0,
+    final MapProvider routes = context.watch<MapProvider>();
+    final ActiveRouteModel? route =
+        routes.activeRoutes.cast<ActiveRouteModel?>().firstWhere(
+              (ActiveRouteModel? item) => item?.id == routeId,
+              orElse: () => null,
+            );
+    if (route == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Vehículo')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const Icon(Icons.location_off, size: 48),
+                const SizedBox(height: 12),
+                const Text('Este vehículo ya no está disponible.',
+                    textAlign: TextAlign.center),
+                TextButton(
+                    onPressed: () => context.pop(),
+                    child: const Text('Volver')),
+              ],
             ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              ),
-              if (points.isNotEmpty)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: points,
-                      color: const Color(0xFF7C3AED),
-                      strokeWidth: 5.0,
-                      strokeJoin: StrokeJoin.round,
+          ),
+        ),
+      );
+    }
+
+    final LatLng position = route.currentPosition ??
+        const LatLng(AppConstants.sczLat, AppConstants.sczLng);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Recorrido en vivo')),
+      body: Column(
+        children: <Widget>[
+          Expanded(
+            child: FlutterMap(
+              options: MapOptions(
+                  initialCenter: position,
+                  initialZoom: AppConstants.mapZoomClose),
+              children: <Widget>[
+                TileLayer(
+                    urlTemplate: AppConstants.osmTileUrl,
+                    userAgentPackageName: 'com.apuradito.apuradito_mobile'),
+                if (route.hasRoute)
+                  PolylineLayer(
+                    polylines: <Polyline>[
+                      Polyline(
+                          points: route.routePolyline,
+                          color: const Color(0xFF7C3AED),
+                          strokeWidth: 5)
+                    ],
+                  ),
+                MarkerLayer(
+                  markers: <Marker>[
+                    Marker(
+                      point: position,
+                      width: 48,
+                      height: 48,
+                      child: const CircleAvatar(
+                        backgroundColor: Color(0xFF7C3AED),
+                        child: Icon(Icons.directions_car, color: Colors.white),
+                      ),
                     ),
                   ],
                 ),
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: LatLng(currentLat, currentLng),
-                    width: 48,
-                    height: 48,
-                    child: const CircleAvatar(
-                      backgroundColor: Color(0xFF7C3AED),
-                      child: Icon(Icons.directions_car, color: Colors.white, size: 28),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: CircleAvatar(
-                backgroundColor: const Color(0xFF1A1035),
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ),
+              ],
             ),
           ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: const BoxDecoration(
-                color: Color(0xFF0F0A1E),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      const CircleAvatar(
-                        radius: 24,
-                        backgroundColor: Colors.grey,
-                        child: Icon(Icons.person, color: Colors.white),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              route?.conductorNombreCompleto ?? 'Conductor',
-                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            const Text('Toyota Corolla • 1234ABC', style: TextStyle(color: Colors.white54)),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A1035),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Column(
-                          children: [
-                            Text('ETA', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                            Text('12 min', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
-                    ],
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(route.conductorNombreCompleto,
+                      style: Theme.of(context).textTheme.titleLarge),
+                  if (route.vehiculoPlaca?.isNotEmpty ?? false)
+                    Text('Placa: ${route.vehiculoPlaca}',
+                        style: const TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 12),
+                  Text('${route.origenDireccion} → ${route.destinoDireccion}'),
+                  const SizedBox(height: 4),
+                  Text('${route.asientosDisponibles} asientos disponibles',
+                      style: const TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: routes.loadActiveRoutes,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Actualizar ubicación'),
                   ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.red),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          onPressed: () {
-                            // Cancelar viaje
-                            Navigator.of(context).pop();
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    onPressed: route.asientosDisponibles <= 0
+                        ? null
+                        : () {
+                            if (!context.read<ConnectivityService>().isOnline) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Conéctate a Internet para solicitar un asiento.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            context.push('/passenger/request/$routeId');
                           },
-                          child: const Text('Cancelar', style: TextStyle(color: Colors.red)),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF7C3AED),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          onPressed: _showRatingDialog,
-                          child: const Text('Llegué / Finalizar', style: TextStyle(color: Colors.white)),
-                        ),
-                      ),
-                    ],
+                    icon: const Icon(Icons.event_seat),
+                    label: Text(route.asientosDisponibles <= 0
+                        ? 'Sin asientos disponibles'
+                        : 'Solicitar un asiento'),
                   ),
                 ],
               ),

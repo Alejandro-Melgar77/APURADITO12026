@@ -18,18 +18,19 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="APURADITO: rutas compartidas en Santa Cruz de la Sierra.">
+  <meta name="theme-color" content="#7C3AED">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="apuradito_mobile">
+  <meta name="apple-mobile-web-app-title" content="APURADITO">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>apuradito_mobile</title>
+  <title>APURADITO</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
@@ -42,5 +43,14 @@
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
   <script src="flutter_bootstrap.js" async></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('service-worker.js').catch(function (error) {
+          console.warn('APURADITO offline cache unavailable:', error);
+        });
+      });
+    }
+  </script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, func
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -43,3 +43,7 @@ class ConsentimientoUsuario(Base):
     # Relaciones
     usuario = relationship("Usuario", back_populates="consentimientos")
     politica = relationship("Politica", back_populates="consentimientos")
+
+    __table_args__ = (
+        UniqueConstraint("usuario_id", "politica_id", name="uq_consentimiento_usuario_politica"),
+    )

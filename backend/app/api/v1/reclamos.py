@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 from typing import Optional
 from app.core.database import get_db
@@ -31,7 +32,7 @@ async def listar_reclamos(
     current_user: Usuario = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Reclamo)
+    query = select(Reclamo).options(selectinload(Reclamo.usuario))
 
     if tipo:
         query = query.where(Reclamo.tipo == tipo)
@@ -100,7 +101,9 @@ async def obtener_reclamo(
     current_user: Usuario = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Reclamo).where(Reclamo.id == id))
+    result = await db.execute(
+        select(Reclamo).options(selectinload(Reclamo.usuario)).where(Reclamo.id == id)
+    )
     r = result.scalar_one_or_none()
     if not r:
         raise HTTPException(status_code=404, detail="Reclamo no encontrado")

@@ -1,19 +1,35 @@
 import axios from 'axios'
 
-const getBaseURL = () => {
-  const env = localStorage.getItem('apuradito_env') || 'local'
-  if (env === 'local') return 'http://localhost:8000'
-  return (import.meta.env.VITE_API_URL_PROD || import.meta.env.VITE_API_URL || 'https://apuradito-backend.onrender.com').replace(/\/$/, '')
+const normalizeRemoteBaseURL = (value: string) => {
+  const trimmed = value.trim().replace(/\/$/, '')
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  if (trimmed.startsWith('//')) return `https:${trimmed}`
+  return `https://${trimmed}`
 }
 
+export const getApiBaseURL = (selectedEnv?: string) => {
+  const env = selectedEnv || localStorage.getItem('apuradito_env') || 'local'
+  if (env === 'local') return 'http://localhost:8000'
+  const remoteHost =
+    import.meta.env.VITE_API_URL_PROD ||
+    import.meta.env.VITE_API_URL ||
+    'https://apuradito-backend.onrender.com'
+  return normalizeRemoteBaseURL(remoteHost)
+}
+
+export const getWebSocketBaseURL = (selectedEnv?: string) =>
+  getApiBaseURL(selectedEnv).replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
+
 export const api = axios.create({
-  baseURL: getBaseURL(),
+  baseURL: getApiBaseURL(),
   headers: { 'Content-Type': 'application/json' }
 })
 
 // Interceptores para inyectar automáticamente el token JWT
 api.interceptors.request.use(
   (config) => {
+    // El entorno puede cambiar sin recargar la aplicación; resuélvelo antes de cada solicitud.
+    config.baseURL = getApiBaseURL()
     const token = localStorage.getItem('apuradito_access_token')
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
@@ -37,7 +53,9 @@ api.interceptors.response.use(
         if (!refreshToken) throw new Error('No hay refresh token')
 
         const response = await axios.post(
-          `${getBaseURL()}/api/v1/auth/refresh?refresh_token=${refreshToken}`
+          `${getApiBaseURL()}/api/v1/auth/refresh`,
+          null,
+          { params: { refresh_token: refreshToken } }
         )
         const { access_token, refresh_token: new_refresh_token } = response.data
 

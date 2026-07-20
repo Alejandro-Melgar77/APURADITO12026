@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
+from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 from app.core.database import get_db
 from app.api.deps import get_current_active_user, get_current_admin
@@ -23,7 +24,7 @@ class AceptarPoliticaRequest(BaseModel):
 
 @router.get("/")
 async def listar_politicas_activas(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Politica).where(Politica.activa == True))
+    result = await db.execute(select(Politica).where(Politica.activa.is_(True)))
     return result.scalars().all()
 
 
@@ -35,7 +36,7 @@ async def crear_politica(
 ):
     # Desactivar la versión anterior del mismo tipo si existe
     result = await db.execute(
-        select(Politica).where(and_(Politica.tipo == req.tipo, Politica.activa == True))
+        select(Politica).where(and_(Politica.tipo == req.tipo, Politica.activa.is_(True)))
     )
     politica_anterior = result.scalar_one_or_none()
     if politica_anterior:
@@ -79,7 +80,9 @@ async def aceptar_politica(
 
     # Verificar si ya existe el consentimiento para este usuario y política
     res_cons = await db.execute(
-        select(ConsentimientoUsuario).where(
+        select(ConsentimientoUsuario)
+        .options(selectinload(ConsentimientoUsuario.politica))
+        .where(
             and_(
                 ConsentimientoUsuario.usuario_id == current_user.id,
                 ConsentimientoUsuario.politica_id == politica.id,
@@ -115,7 +118,9 @@ async def obtener_consentimientos_usuario(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(ConsentimientoUsuario).where(
+        select(ConsentimientoUsuario)
+        .options(selectinload(ConsentimientoUsuario.politica))
+        .where(
             ConsentimientoUsuario.usuario_id == current_user.id
         )
     )

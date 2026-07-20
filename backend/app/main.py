@@ -1,12 +1,12 @@
 """Punto de entrada principal de la aplicación Apuradito FastAPI."""
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 from app.core.config import settings
-from app.core.database import init_db
+from app.core.database import check_database_connection, init_db
 
 # Importar routers
 from app.api.v1 import (
@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Iniciando {settings.APP_NAME} v{settings.APP_VERSION}")
     logger.info(f"Entorno: {settings.ENVIRONMENT}")
     # En desarrollo, crear tablas si no existen
-    if settings.ENVIRONMENT == "local" or settings.DEBUG:
+    if settings.ENVIRONMENT == "local" or settings.AUTO_CREATE_SCHEMA:
         await init_db()
         logger.info("Base de datos inicializada de forma local")
     yield
@@ -64,7 +64,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS_LIST,
-    allow_credentials=True,
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS and "*" not in settings.CORS_ORIGINS_LIST,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -72,6 +72,14 @@ app.add_middleware(
 
 @app.get("/health", tags=["Estado"])
 async def health_check():
+    try:
+        await check_database_connection()
+    except Exception as exc:
+        logger.exception("Database health check failed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Base de datos no disponible",
+        ) from exc
     """Verificación de estado de la API."""
     return {
         "estado": "activo",

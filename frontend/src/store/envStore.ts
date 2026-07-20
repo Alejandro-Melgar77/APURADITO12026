@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { api } from '../services/api'
+import { api, getApiBaseURL } from '../services/api'
 
 interface EnvState {
   env: 'local' | 'online'
@@ -17,12 +17,7 @@ export const useEnvStore = create<EnvState>((set) => {
         localStorage.setItem('apuradito_env', nextEnv)
 
         // Actualizar la baseURL del cliente axios directamente al cambiar el switch
-        if (nextEnv === 'local') {
-          api.defaults.baseURL = 'http://localhost:8000'
-        } else {
-          api.defaults.baseURL =
-            (import.meta.env.VITE_API_URL_PROD || import.meta.env.VITE_API_URL || 'https://apuradito-backend.onrender.com').replace(/\/$/, '')
-        }
+        api.defaults.baseURL = getApiBaseURL()
 
         return { env: nextEnv }
       })

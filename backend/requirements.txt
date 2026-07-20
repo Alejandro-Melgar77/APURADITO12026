@@ -45,11 +45,8 @@ openpyxl
 # Email
 aiosmtplib
 
-# IA y Machine Learning
+# IA ligera y Machine Learning opcional
 ruff
-torch
-torchvision
 scikit-learn
 opencv-python-headless
-easyocr
 numpy

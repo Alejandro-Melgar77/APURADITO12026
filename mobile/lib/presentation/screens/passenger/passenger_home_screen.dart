@@ -1,11 +1,13 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:apuradito_mobile/core/constants/app_constants.dart';
 import 'package:apuradito_mobile/core/network/websocket_service.dart';
-import 'package:apuradito_mobile/presentation/providers/map_provider.dart';
+import 'package:apuradito_mobile/data/models/route_model.dart';
 import 'package:apuradito_mobile/presentation/providers/auth_provider.dart';
+import 'package:apuradito_mobile/presentation/providers/map_provider.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
 
 class PassengerHomeScreen extends StatefulWidget {
   const PassengerHomeScreen({super.key});
@@ -21,300 +23,248 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initWebSocket();
+      if (!mounted) return;
+      final WebSocketService webSocket = context.read<WebSocketService>();
+      final MapProvider routes = context.read<MapProvider>();
+      webSocket.addMessageListener(routes.handleWsMessage);
+      webSocket.connect();
+      routes.loadActiveRoutes();
     });
-  }
-
-  void _initWebSocket() {
-    final wsService = context.read<WebSocketService>();
-    final mapProvider = context.read<MapProvider>();
-
-    if (!wsService.isConnected) {
-      wsService.connect();
-    }
-    
-    wsService.addListener2(mapProvider.handleWsMessage);
   }
 
   @override
   void dispose() {
-    final wsService = context.read<WebSocketService>();
-    final mapProvider = context.read<MapProvider>();
-    wsService.removeListener2(mapProvider.handleWsMessage);
+    final WebSocketService webSocket = context.read<WebSocketService>();
+    webSocket
+        .removeMessageListener(context.read<MapProvider>().handleWsMessage);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final mapProvider = context.watch<MapProvider>();
-    final wsService = context.watch<WebSocketService>();
-    final authProvider = context.watch<AuthProvider>();
-    
-    final selectedRoute = mapProvider.selectedRoute;
-    final userCoins = authProvider.currentUser?.saldoCoins ?? 0;
+    final MapProvider routes = context.watch<MapProvider>();
+    final WebSocketService webSocket = context.watch<WebSocketService>();
+    final int balance =
+        context.watch<AuthProvider>().currentUser?.saldoCoins.round() ?? 0;
 
     return Scaffold(
       body: Stack(
-        children: [
+        children: <Widget>[
           FlutterMap(
             mapController: _mapController,
-            options: MapOptions(
+            options: const MapOptions(
               initialCenter: LatLng(AppConstants.sczLat, AppConstants.sczLng),
-              initialZoom: 13.0,
+              initialZoom: AppConstants.mapZoomDefault,
             ),
-            children: [
+            children: <Widget>[
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: AppConstants.osmTileUrl,
+                userAgentPackageName: 'com.apuradito.apuradito_mobile',
               ),
               PolylineLayer(
-                polylines: mapProvider.activeRoutes.where((r) => r.hasRoute == true).map((route) {
-                  final isSelected = selectedRoute?.id == route.id;
-                  // convert double[2] to LatLng
-                  final points = route.routePolyline ?? [];
-                  return Polyline(
-                    points: points,
-                    color: isSelected ? const Color(0xFF9F67FF) : const Color(0xFF7C3AED),
-                    strokeWidth: isSelected ? 7.0 : 5.0,
-                    strokeJoin: StrokeJoin.round,
-                  );
-                }).toList(),
+                polylines: routes.activeRoutes
+                    .where((ActiveRouteModel route) => route.hasRoute)
+                    .map((ActiveRouteModel route) => Polyline(
+                          points: route.routePolyline,
+                          color: routes.selectedRoute?.id == route.id
+                              ? const Color(0xFF9F67FF)
+                              : const Color(0xFF7C3AED),
+                          strokeWidth:
+                              routes.selectedRoute?.id == route.id ? 7 : 5,
+                        ))
+                    .toList(),
               ),
               MarkerLayer(
-                markers: mapProvider.activeRoutes.where((r) => r.hasPosition == true).map((route) {
-                  return Marker(
-                    point: LatLng(route.lat!, route.lng!),
-                    width: 36,
-                    height: 36,
-                    child: GestureDetector(
-                      onTap: () {
-                        mapProvider.selectRoute(route);
-                      },
-                      child: const CircleAvatar(
-                        backgroundColor: Color(0xFF7C3AED),
-                        child: Icon(Icons.directions_car, color: Colors.white, size: 20),
-                      ),
-                    ),
-                  );
-                }).toList(),
+                markers: routes.activeRoutes
+                    .where((ActiveRouteModel route) => route.hasPosition)
+                    .map((ActiveRouteModel route) => Marker(
+                          point: route.currentPosition!,
+                          width: 42,
+                          height: 42,
+                          child: InkWell(
+                            onTap: () => routes.selectRoute(route),
+                            child: const CircleAvatar(
+                              backgroundColor: Color(0xFF7C3AED),
+                              child: Icon(Icons.directions_car,
+                                  color: Colors.white),
+                            ),
+                          ),
+                        ))
+                    .toList(),
               ),
             ],
           ),
-          
           SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Image.asset('assets/icons/logo.png', width: 30, height: 30, errorBuilder: (_,__,___) => const Icon(Icons.local_taxi, color: Color(0xFF7C3AED), size: 30)),
-                          const SizedBox(width: 8),
-                          const Text('Apuradito', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Color(0xFF1A0B3B))),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A1035),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '💰 $userCoins Cs',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  const Text(
+                    AppConstants.appName,
+                    style: TextStyle(
+                        color: Color(0xFF1A0B3B),
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold),
+                  ),
+                  Row(
+                    children: <Widget>[
+                      _ConnectionChip(connected: webSocket.isConnected),
+                      const SizedBox(width: 8),
+                      Chip(
+                        backgroundColor: const Color(0xFF1A1035),
+                        label: Text('$balance Coins',
+                            style: const TextStyle(color: Colors.white)),
                       ),
                     ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 70,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: wsService.isConnected ? Colors.green : Colors.red,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    wsService.isConnected ? 'En vivo' : 'Sin conexión',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
                   ),
                 ],
               ),
             ),
           ),
-
           DraggableScrollableSheet(
-            initialChildSize: 0.35,
-            minChildSize: 0.15,
-            maxChildSize: 0.6,
-            builder: (context, scrollController) {
-              return Container(
-                decoration: const BoxDecoration(
-                  color: Color(0xFF0F0A1E),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black26, blurRadius: 10, spreadRadius: 0),
-                  ],
-                ),
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[700],
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
+            initialChildSize: 0.37,
+            minChildSize: 0.2,
+            maxChildSize: 0.7,
+            builder:
+                (BuildContext context, ScrollController scrollController) =>
+                    Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF0F0A1E),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: ListView(
+                controller: scrollController,
+                padding: const EdgeInsets.all(16),
+                children: <Widget>[
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(4)),
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      '¿A dónde vas hoy?',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                    const SizedBox(height: 16),
-                    GestureDetector(
-                      onTap: () {
-                        // Navigate to search screen
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A1035),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.search, color: Colors.white54),
-                            SizedBox(width: 12),
-                            Text('Buscar destino...', style: TextStyle(color: Colors.white54)),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        const Text(
-                          'Vehículos disponibles cerca',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF7C3AED),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '${mapProvider.activeRoutes.length}',
-                            style: const TextStyle(color: Colors.white, fontSize: 12),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      height: 180,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: mapProvider.activeRoutes.length,
-                        itemBuilder: (context, index) {
-                          final route = mapProvider.activeRoutes[index];
-                          return Container(
-                            width: 280,
-                            margin: const EdgeInsets.only(right: 16),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1A1035),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: selectedRoute?.id == route.id ? const Color(0xFF7C3AED) : Colors.transparent, width: 2),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const CircleAvatar(
-                                      radius: 20,
-                                      backgroundColor: Colors.grey,
-                                      child: Icon(Icons.person, color: Colors.white),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(route.conductorNombreCompleto ?? 'Conductor', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                          Text('Asientos: ${route.asientosDisponibles}', style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Text('${route.origenDireccion} → ${route.destinoDireccion}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                                const Spacer(),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 36,
-                                  child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF7C3AED),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    ),
-                                    onPressed: () {
-                                      mapProvider.selectRoute(route);
-                                    },
-                                    child: const Text('Ver Ruta', style: TextStyle(color: Colors.white)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Vehículos disponibles cerca',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  const Text(
+                      'Selecciona un vehículo para ver su recorrido en tiempo real.',
+                      style: TextStyle(color: Colors.white60)),
+                  const SizedBox(height: 16),
+                  if (routes.isLoading)
+                    const Center(
+                        child: Padding(
+                            padding: EdgeInsets.all(24),
+                            child: CircularProgressIndicator()))
+                  else if (routes.activeRoutes.isEmpty)
+                    _EmptyRoutes(
+                        onRetry: routes.loadActiveRoutes,
+                        errorMessage: routes.errorMessage)
+                  else
+                    ...routes.activeRoutes.map(
+                        (ActiveRouteModel route) => _RouteCard(route: route)),
+                ],
+              ),
+            ),
           ),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: const Color(0xFF0F0A1E),
-        selectedItemColor: const Color(0xFF7C3AED),
-        unselectedItemColor: Colors.white54,
-        type: BottomNavigationBarType.fixed,
-        items: const [
+        currentIndex: 0,
+        onTap: (int index) {
+          switch (index) {
+            case 1:
+              context.push('/passenger/trips');
+              break;
+            case 2:
+              context.push('/shared/wallet');
+              break;
+            case 3:
+              context.push('/shared/profile');
+              break;
+            default:
+              break;
+          }
+        },
+        items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Inicio'),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt), label: 'Mis Viajes'),
-          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: 'Wallet'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.receipt_long), label: 'Mis viajes'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.account_balance_wallet), label: 'Billetera'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
         ],
+      ),
+    );
+  }
+}
+
+class _ConnectionChip extends StatelessWidget {
+  const _ConnectionChip({required this.connected});
+  final bool connected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      avatar: CircleAvatar(
+          radius: 5, backgroundColor: connected ? Colors.green : Colors.orange),
+      label: Text(connected ? 'En vivo' : 'Reconectando'),
+    );
+  }
+}
+
+class _EmptyRoutes extends StatelessWidget {
+  const _EmptyRoutes({required this.onRetry, this.errorMessage});
+  final VoidCallback onRetry;
+  final String? errorMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: <Widget>[
+            const Icon(Icons.no_transfer, color: Colors.white54, size: 42),
+            const SizedBox(height: 8),
+            Text(errorMessage ?? 'No hay vehículos disponibles por el momento.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70)),
+            TextButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Reintentar')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RouteCard extends StatelessWidget {
+  const _RouteCard({required this.route});
+  final ActiveRouteModel route;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: const CircleAvatar(child: Icon(Icons.directions_car)),
+        title: Text(route.conductorNombreCompleto),
+        subtitle: Text('${route.origenDireccion} → ${route.destinoDireccion}',
+            maxLines: 2, overflow: TextOverflow.ellipsis),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () {
+          context.read<MapProvider>().selectRoute(route);
+          context.push('/passenger/tracking/${route.id}');
+        },
       ),
     );
   }

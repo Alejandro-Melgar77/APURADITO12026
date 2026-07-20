@@ -1,6 +1,10 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:apuradito_mobile/core/theme/app_theme.dart';
+import 'package:apuradito_mobile/presentation/providers/auth_provider.dart';
 import 'package:apuradito_mobile/presentation/providers/wallet_provider.dart';
 
 class WalletScreen extends StatefulWidget {
@@ -10,7 +14,8 @@ class WalletScreen extends StatefulWidget {
   State<WalletScreen> createState() => _WalletScreenState();
 }
 
-class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderStateMixin {
+class _WalletScreenState extends State<WalletScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -18,7 +23,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<WalletProvider>().loadWallet();
+      final String? userId = context.read<AuthProvider>().currentUser?.id;
+      if (userId != null) context.read<WalletProvider>().loadWallet(userId);
     });
   }
 
@@ -33,7 +39,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
       context: context,
       backgroundColor: AppTheme.bgSurface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppTheme.radiusXl)),
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppTheme.radiusXl)),
       ),
       builder: (context) {
         return Padding(
@@ -43,7 +50,10 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
             children: [
               const Text(
                 'Recargar Coins',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary),
               ),
               const SizedBox(height: 24),
               Wrap(
@@ -54,15 +64,16 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                   return ActionChip(
                     backgroundColor: AppTheme.primary.withOpacity(0.1),
                     side: const BorderSide(color: AppTheme.primary),
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    labelPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     label: Text(
                       '$amount Bs',
-                      style: const TextStyle(color: AppTheme.primaryLight, fontSize: 18, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          color: AppTheme.primaryLight,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold),
                     ),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _showQR(context, amount);
-                    },
+                    onPressed: () => _startRecharge(context, amount),
                   );
                 }).toList(),
               ),
@@ -74,40 +85,58 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
     );
   }
 
-  void _showQR(BuildContext context, int amount) {
+  Future<void> _startRecharge(BuildContext sheetContext, int amount) async {
+    Navigator.pop(sheetContext);
+    final Map<String, dynamic>? recharge = await context
+        .read<WalletProvider>()
+        .initiateRecharge(amount.toDouble());
+    if (!mounted) return;
+    if (recharge == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.read<WalletProvider>().errorMessage ??
+              'No se pudo generar la recarga.'),
+        ),
+      );
+      return;
+    }
+    _showQR(recharge);
+  }
+
+  void _showQR(Map<String, dynamic> recharge) {
+    final String? encodedQr = recharge['qr_base64'] as String?;
+    final Uint8List? qrBytes =
+        encodedQr == null ? null : base64Decode(encodedQr);
+    final String amount = recharge['monto_bs']?.toString() ?? '';
+    final String reference = recharge['referencia']?.toString() ?? '';
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppTheme.bgSurface,
-          title: Text('Pago de $amount Bs', style: const TextStyle(color: AppTheme.textPrimary)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 200,
-                height: 200,
-                color: Colors.white,
-                child: const Center(
-                  child: Icon(Icons.qr_code_2, size: 180, color: Colors.black),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Escanea este código QR para completar la recarga de Coins.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textSecondary),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cerrar', style: TextStyle(color: AppTheme.primaryLight)),
-            )
+      builder: (BuildContext dialogContext) => AlertDialog(
+        backgroundColor: AppTheme.bgSurface,
+        title: Text('Recarga de $amount Bs',
+            style: const TextStyle(color: AppTheme.textPrimary)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            if (qrBytes != null)
+              Image.memory(qrBytes, width: 200, height: 200)
+            else
+              const Icon(Icons.qr_code_2, size: 160),
+            const SizedBox(height: 16),
+            Text(
+              'Usa esta referencia en tu transferencia: $reference',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppTheme.textSecondary),
+            ),
           ],
-        );
-      },
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -122,7 +151,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
       body: Consumer<WalletProvider>(
         builder: (context, provider, child) {
           if (provider.isLoading && provider.balance == 0) {
-            return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
+            return const Center(
+                child: CircularProgressIndicator(color: AppTheme.primary));
           }
 
           return Column(
@@ -146,9 +176,11 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                         children: [
                           Text(
                             'Saldo Disponible',
-                            style: TextStyle(color: Colors.white70, fontSize: 16),
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 16),
                           ),
-                          Icon(Icons.account_balance_wallet, color: Colors.white, size: 28),
+                          Icon(Icons.account_balance_wallet,
+                              color: Colors.white, size: 28),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -166,7 +198,8 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                           backgroundColor: Colors.white,
                           foregroundColor: AppTheme.primaryDark,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                            borderRadius:
+                                BorderRadius.circular(AppTheme.radiusFull),
                           ),
                         ),
                         onPressed: () => _showRechargeBottomSheet(context),
@@ -192,34 +225,55 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                   children: [
                     // Lista de Pagos
                     provider.payments.isEmpty
-                        ? const Center(child: Text('No hay pagos recientes', style: TextStyle(color: AppTheme.textSecondary)))
+                        ? const Center(
+                            child: Text('No hay pagos recientes',
+                                style:
+                                    TextStyle(color: AppTheme.textSecondary)))
                         : ListView.separated(
                             padding: const EdgeInsets.all(16),
                             itemCount: provider.payments.length,
-                            separatorBuilder: (_, __) => const Divider(color: AppTheme.divider),
+                            separatorBuilder: (_, __) =>
+                                const Divider(color: AppTheme.divider),
                             itemBuilder: (context, index) {
                               final pago = provider.payments[index];
                               return ListTile(
                                 leading: const CircleAvatar(
                                   backgroundColor: AppTheme.bgSurfaceHigh,
-                                  child: Icon(Icons.payment, color: AppTheme.textMuted),
+                                  child: Icon(Icons.payment,
+                                      color: AppTheme.textMuted),
                                 ),
-                                title: Text(pago.metodo, style: const TextStyle(color: AppTheme.textPrimary)),
-                                subtitle: Text(pago.creadoEn.split('T').first, style: const TextStyle(color: AppTheme.textSecondary)),
+                                title: Text(
+                                    pago['metodo']?.toString() ?? 'Pago',
+                                    style: const TextStyle(
+                                        color: AppTheme.textPrimary)),
+                                subtitle: Text(
+                                    (pago['creado_en'] ?? '')
+                                        .toString()
+                                        .split('T')
+                                        .first,
+                                    style: const TextStyle(
+                                        color: AppTheme.textSecondary)),
                                 trailing: Text(
-                                  '-${pago.montoBs.toStringAsFixed(2)}',
-                                  style: const TextStyle(color: AppTheme.error, fontWeight: FontWeight.bold, fontSize: 16),
+                                  '-${(pago['monto_total_bs'] as num? ?? 0).toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                      color: AppTheme.error,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16),
                                 ),
                               );
                             },
                           ),
                     // Lista de Recargas
                     provider.recharges.isEmpty
-                        ? const Center(child: Text('No hay recargas recientes', style: TextStyle(color: AppTheme.textSecondary)))
+                        ? const Center(
+                            child: Text('No hay recargas recientes',
+                                style:
+                                    TextStyle(color: AppTheme.textSecondary)))
                         : ListView.separated(
                             padding: const EdgeInsets.all(16),
                             itemCount: provider.recharges.length,
-                            separatorBuilder: (_, __) => const Divider(color: AppTheme.divider),
+                            separatorBuilder: (_, __) =>
+                                const Divider(color: AppTheme.divider),
                             itemBuilder: (context, index) {
                               final recarga = provider.recharges[index];
                               final monto = recarga['monto_bs'] ?? 0;
@@ -227,13 +281,22 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                               return ListTile(
                                 leading: const CircleAvatar(
                                   backgroundColor: AppTheme.bgSurfaceHigh,
-                                  child: Icon(Icons.download, color: AppTheme.success),
+                                  child: Icon(Icons.download,
+                                      color: AppTheme.success),
                                 ),
-                                title: const Text('Recarga QR', style: TextStyle(color: AppTheme.textPrimary)),
-                                subtitle: Text(fecha.toString().split('T').first, style: const TextStyle(color: AppTheme.textSecondary)),
+                                title: const Text('Recarga QR',
+                                    style:
+                                        TextStyle(color: AppTheme.textPrimary)),
+                                subtitle: Text(
+                                    fecha.toString().split('T').first,
+                                    style: const TextStyle(
+                                        color: AppTheme.textSecondary)),
                                 trailing: Text(
                                   '+${monto.toString()}',
-                                  style: const TextStyle(color: AppTheme.success, fontWeight: FontWeight.bold, fontSize: 16),
+                                  style: const TextStyle(
+                                      color: AppTheme.success,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16),
                                 ),
                               );
                             },

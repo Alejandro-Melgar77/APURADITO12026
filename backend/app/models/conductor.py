@@ -13,6 +13,7 @@ class Conductor(Base):
         UUID(as_uuid=True),
         ForeignKey("usuarios.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
     )
     calificacion_promedio = Column(Numeric(3, 2), default=0.00)
     total_viajes = Column(Integer, default=0)

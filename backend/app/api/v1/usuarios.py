@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
+from sqlalchemy import and_, select, func, or_
 from typing import Optional
 from app.core.database import get_db
 from app.api.deps import get_current_admin
@@ -89,6 +89,13 @@ async def crear_usuario_manual(
             status_code=400, detail="El correo electrónico ya está registrado"
         )
 
+    if req.ci_carnet:
+        result_ci = await db.execute(
+            select(Usuario).where(Usuario.ci_carnet == req.ci_carnet)
+        )
+        if result_ci.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="El carnet ya esta registrado")
+
     nuevo_usuario = Usuario(
         email=req.email,
         password_hash=hash_password(req.password),
@@ -119,6 +126,25 @@ async def actualizar_usuario(
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     update_data = req.model_dump(exclude_unset=True)
+    if "email" in update_data and update_data["email"] != user.email:
+        duplicate_email = await db.execute(
+            select(Usuario).where(
+                and_(Usuario.email == update_data["email"], Usuario.id != user.id)
+            )
+        )
+        if duplicate_email.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="El correo electronico ya esta registrado")
+    if "ci_carnet" in update_data and update_data["ci_carnet"]:
+        duplicate_ci = await db.execute(
+            select(Usuario).where(
+                and_(
+                    Usuario.ci_carnet == update_data["ci_carnet"],
+                    Usuario.id != user.id,
+                )
+            )
+        )
+        if duplicate_ci.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="El carnet ya esta registrado")
     for key, value in update_data.items():
         setattr(user, key, value)
 

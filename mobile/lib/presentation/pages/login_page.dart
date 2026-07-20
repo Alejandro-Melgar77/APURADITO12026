@@ -21,9 +21,9 @@ class LoginPage extends StatelessWidget {
                   ElevatedButton(
                     onPressed: () async {
                       await context.read<AuthProvider>().login(
-                        'test@test.com',
-                        'password',
-                      );
+                            'test@test.com',
+                            'password',
+                          );
                       if (context.mounted) {
                         context.go('/passenger');
                       }
@@ -33,9 +33,9 @@ class LoginPage extends StatelessWidget {
                   ElevatedButton(
                     onPressed: () async {
                       await context.read<AuthProvider>().login(
-                        'driver@test.com',
-                        'password',
-                      );
+                            'driver@test.com',
+                            'password',
+                          );
                       if (context.mounted) {
                         context.go('/driver');
                       }

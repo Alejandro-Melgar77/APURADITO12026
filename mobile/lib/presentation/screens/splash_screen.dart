@@ -12,10 +12,12 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  Timer? _timer;
 
   @override
   void initState() {
@@ -35,10 +37,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     _controller.forward();
 
-    Timer(const Duration(milliseconds: 2500), () async {
+    _timer = Timer(const Duration(milliseconds: 2500), () async {
       if (!mounted) return;
       final authProvider = context.read<AuthProvider>();
-      await authProvider.loadSavedUser();
 
       if (authProvider.isLoggedIn) {
         if (authProvider.activeRol == 'conductor') {
@@ -54,6 +55,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   void dispose() {
+    _timer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -64,7 +66,13 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       body: Container(
         width: double.infinity,
         decoration: BoxDecoration(
-          gradient: AppTheme.backgroundGradient, // Assuming this exists
+          gradient: AppTheme.backgroundGradient,
+          image: const DecorationImage(
+            image: AssetImage('assets/images/brand-routes.png'),
+            fit: BoxFit.cover,
+            opacity: 0.38,
+            alignment: Alignment.centerRight,
+          ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -103,7 +111,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             FadeTransition(
               opacity: _fadeAnimation,
               child: const Text(
-                'Tu viaje, tu ruta',
+                'Viajes compartidos, sin demoras',
                 style: TextStyle(
                   color: Color(0xFF94A3B8), // slate400 equivalent
                   fontSize: 14,

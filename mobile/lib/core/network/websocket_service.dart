@@ -1,101 +1,107 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+
 import '../constants/app_constants.dart';
 
-/// Estado de la conexión WebSocket.
 enum WsConnectionState { disconnected, connecting, connected }
 
-/// Servicio singleton de WebSocket para el feed en vivo de viajes.
-/// Se reconecta automáticamente si la conexión se pierde.
+/// Mantiene el feed de viajes activo y se reconecta solo cuando corresponde.
 class WebSocketService extends ChangeNotifier {
-  WebSocketService._internal();
-  static final WebSocketService _instance = WebSocketService._internal();
-  factory WebSocketService() => _instance;
-
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
+  Timer? _reconnectTimer;
   WsConnectionState _state = WsConnectionState.disconnected;
-  final List<void Function(Map<String, dynamic>)> _listeners = [];
+  bool _shouldReconnect = true;
+  final Set<void Function(Map<String, dynamic>)> _messageListeners =
+      <void Function(Map<String, dynamic>)>{};
 
   WsConnectionState get connectionState => _state;
   bool get isConnected => _state == WsConnectionState.connected;
 
-  /// Conecta al WebSocket de viajes activos.
-  void connect() {
-    if (_state == WsConnectionState.connecting ||
-        _state == WsConnectionState.connected) {
-      return;
-    }
-    _state = WsConnectionState.connecting;
-    notifyListeners();
+  Future<void> connect() async {
+    if (_state != WsConnectionState.disconnected) return;
 
+    _shouldReconnect = true;
+    _setState(WsConnectionState.connecting);
     try {
-      _channel = WebSocketChannel.connect(
+      final WebSocketChannel channel = WebSocketChannel.connect(
         Uri.parse(AppConstants.wsViajesUrl),
       );
-      _state = WsConnectionState.connected;
-      notifyListeners();
+      _channel = channel;
+      await channel.ready;
+      if (_channel != channel || !_shouldReconnect) return;
 
-      _subscription = _channel!.stream.listen(
-        (dynamic message) {
-          if (message is String) {
-            try {
-              final Map<String, dynamic> data =
-                  json.decode(message) as Map<String, dynamic>;
-              for (final listener in List.from(_listeners)) {
-                listener(data);
-              }
-            } catch (e) {
-              debugPrint('[WS] Error parsing message: $e');
-            }
-          }
+      _setState(WsConnectionState.connected);
+      _subscription = channel.stream.listen(
+        _handleMessage,
+        onDone: _handleConnectionClosed,
+        onError: (Object error, StackTrace stackTrace) {
+          debugPrint('[WS] $error');
+          _handleConnectionClosed();
         },
-        onDone: () {
-          _state = WsConnectionState.disconnected;
-          notifyListeners();
-          _scheduleReconnect();
-        },
-        onError: (dynamic error) {
-          debugPrint('[WS] Error: $error');
-          _state = WsConnectionState.disconnected;
-          notifyListeners();
-          _scheduleReconnect();
-        },
+        cancelOnError: true,
       );
-    } catch (e) {
-      debugPrint('[WS] Connection failed: $e');
-      _state = WsConnectionState.disconnected;
-      notifyListeners();
-      _scheduleReconnect();
+    } catch (error) {
+      debugPrint('[WS] No se pudo conectar: $error');
+      _handleConnectionClosed();
     }
   }
 
+  void _handleMessage(dynamic message) {
+    if (message is! String) return;
+    try {
+      final Object? decoded = jsonDecode(message);
+      if (decoded is! Map<String, dynamic>) return;
+      for (final void Function(Map<String, dynamic>) listener
+          in Set<void Function(Map<String, dynamic>)>.from(_messageListeners)) {
+        listener(decoded);
+      }
+    } on FormatException catch (error) {
+      debugPrint('[WS] Mensaje inválido: $error');
+    }
+  }
+
+  void _handleConnectionClosed() {
+    _subscription?.cancel();
+    _subscription = null;
+    _channel = null;
+    _setState(WsConnectionState.disconnected);
+    if (_shouldReconnect) _scheduleReconnect();
+  }
+
   void _scheduleReconnect() {
-    Future.delayed(
+    if (_reconnectTimer?.isActive ?? false) return;
+    _reconnectTimer = Timer(
       const Duration(milliseconds: AppConstants.wsReconnectDelayMs),
       connect,
     );
   }
 
-  /// Registra un listener para mensajes del WebSocket.
-  void addListener2(void Function(Map<String, dynamic>) listener) {
-    if (!_listeners.contains(listener)) {
-      _listeners.add(listener);
-    }
+  void addMessageListener(void Function(Map<String, dynamic>) listener) {
+    _messageListeners.add(listener);
   }
 
-  /// Elimina un listener registrado.
-  void removeListener2(void Function(Map<String, dynamic>) listener) {
-    _listeners.remove(listener);
+  void removeMessageListener(void Function(Map<String, dynamic>) listener) {
+    _messageListeners.remove(listener);
   }
 
-  /// Desconecta el WebSocket limpiamente.
-  void disconnect() {
-    _subscription?.cancel();
-    _channel?.sink.close();
-    _state = WsConnectionState.disconnected;
+  Future<void> disconnect() async {
+    _shouldReconnect = false;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    await _subscription?.cancel();
+    _subscription = null;
+    await _channel?.sink.close();
+    _channel = null;
+    _setState(WsConnectionState.disconnected);
+  }
+
+  void _setState(WsConnectionState state) {
+    if (_state == state) return;
+    _state = state;
     notifyListeners();
   }
 

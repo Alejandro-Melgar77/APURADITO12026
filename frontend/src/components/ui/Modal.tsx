@@ -37,10 +37,16 @@ export default function Modal({
 
   return (
     <div className="modal-overlay fade-in" onClick={onClose}>
-      <div className={`modal-container modal-${size}`} onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`modal-container modal-${size}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h2 className="modal-title">{title}</h2>
-          <button className="modal-close btn-icon" onClick={onClose}>
+          <button type="button" className="modal-close btn-icon" onClick={onClose} aria-label="Cerrar diálogo">
             <X size={20} />
           </button>
         </div>

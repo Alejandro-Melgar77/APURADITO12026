@@ -2,7 +2,7 @@ import random
 from typing import Optional
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from app.api.deps import get_current_admin
 from app.core.database import AsyncSessionLocal
@@ -16,16 +16,16 @@ router = APIRouter()
 
 
 class IniciarSimulacionRequest(BaseModel):
-    num_vehiculos: int
-    num_pasajeros: int
-    velocidad_promedio: float
+    num_vehiculos: int = Field(..., ge=1, le=20)
+    num_pasajeros: int = Field(..., ge=0, le=200)
+    velocidad_promedio: float = Field(..., gt=0, le=120)
     origen_lat: Optional[float] = None
     origen_lng: Optional[float] = None
     destino_lat: Optional[float] = None
     destino_lng: Optional[float] = None
 
 class VelocidadSimulacionRequest(BaseModel):
-    velocidad_kmh: float
+    velocidad_kmh: float = Field(..., gt=0, le=120)
 
 
 ESTADO_SIMULACION = {
@@ -48,10 +48,18 @@ def generar_punto():
 async def iniciar_simulacion(
     req: IniciarSimulacionRequest, current_user: Usuario = Depends(get_current_admin)
 ):
-    ESTADO_SIMULACION["activo"] = True
-    ESTADO_SIMULACION["num_vehiculos"] = req.num_vehiculos
-    ESTADO_SIMULACION["num_pasajeros"] = req.num_pasajeros
-    ESTADO_SIMULACION["velocidad_promedio"] = req.velocidad_promedio
+    if ESTADO_SIMULACION["activo"]:
+        raise HTTPException(status_code=409, detail="Ya hay una simulacion activa")
+    if (req.origen_lat is None) != (req.origen_lng is None):
+        raise HTTPException(
+            status_code=422,
+            detail="Origen requiere latitud y longitud juntas",
+        )
+    if (req.destino_lat is None) != (req.destino_lng is None):
+        raise HTTPException(
+            status_code=422,
+            detail="Destino requiere latitud y longitud juntas",
+        )
 
     async with AsyncSessionLocal() as session:
         # Obtenemos conductores
@@ -127,6 +135,11 @@ async def iniciar_simulacion(
             rutas_creadas += 1
 
         await session.commit()
+
+    ESTADO_SIMULACION["activo"] = True
+    ESTADO_SIMULACION["num_vehiculos"] = rutas_creadas
+    ESTADO_SIMULACION["num_pasajeros"] = req.num_pasajeros
+    ESTADO_SIMULACION["velocidad_promedio"] = req.velocidad_promedio
 
     return {
         "mensaje": f"Simulación iniciada con {rutas_creadas} rutas",

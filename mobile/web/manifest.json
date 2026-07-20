@@ -1,12 +1,14 @@
 {
-    "name": "apuradito_mobile",
-    "short_name": "apuradito_mobile",
+    "name": "APURADITO · Viajes compartidos",
+    "short_name": "APURADITO",
+    "id": "/",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0F0A1E",
+    "theme_color": "#7C3AED",
+    "description": "Rutas compartidas de Apuradito en Santa Cruz de la Sierra.",
     "orientation": "portrait-primary",
+    "categories": ["travel", "transportation", "maps"],
     "prefer_related_applications": false,
     "icons": [
         {

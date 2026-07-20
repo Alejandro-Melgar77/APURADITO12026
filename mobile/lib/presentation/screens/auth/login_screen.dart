@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:apuradito_mobile/presentation/providers/auth_provider.dart';
 import 'package:apuradito_mobile/presentation/widgets/apuradito_button.dart';
+import 'package:apuradito_mobile/core/theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -43,7 +44,8 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(authProvider.errorMessage ?? 'Error al iniciar sesión'),
+            content:
+                Text(authProvider.errorMessage ?? 'Error al iniciar sesión'),
             backgroundColor: Colors.red,
           ),
         );
@@ -58,10 +60,12 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF1A0B3B), Color(0xFF0F0A1E)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+          gradient: AppTheme.backgroundGradient,
+          image: DecorationImage(
+            image: AssetImage('assets/images/brand-routes.png'),
+            fit: BoxFit.cover,
+            opacity: 0.30,
+            alignment: Alignment.centerRight,
           ),
         ),
         child: SafeArea(
@@ -94,7 +98,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Bienvenido de nuevo',
+                      'Tu viaje, a tu ritmo',
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.white70,
@@ -110,14 +114,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         fillColor: const Color(0xFF1A1035),
                         hintText: 'Email',
                         hintStyle: const TextStyle(color: Colors.white54),
-                        prefixIcon: const Icon(Icons.email, color: Colors.white54),
+                        prefixIcon:
+                            const Icon(Icons.email, color: Colors.white54),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF7C3AED)),
+                          borderSide:
+                              const BorderSide(color: Color(0xFF7C3AED)),
                         ),
                       ),
                       validator: (value) {
@@ -137,10 +143,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         fillColor: const Color(0xFF1A1035),
                         hintText: 'Contraseña',
                         hintStyle: const TextStyle(color: Colors.white54),
-                        prefixIcon: const Icon(Icons.lock, color: Colors.white54),
+                        prefixIcon:
+                            const Icon(Icons.lock, color: Colors.white54),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _obscureText ? Icons.visibility : Icons.visibility_off,
+                            _obscureText
+                                ? Icons.visibility
+                                : Icons.visibility_off,
                             color: Colors.white54,
                           ),
                           onPressed: () {
@@ -155,11 +164,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF7C3AED)),
+                          borderSide:
+                              const BorderSide(color: Color(0xFF7C3AED)),
                         ),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty || value.length < 6) {
+                        if (value == null ||
+                            value.isEmpty ||
+                            value.length < 6) {
                           return 'Mínimo 6 caracteres';
                         }
                         return null;
@@ -179,7 +191,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text(
                         '¿No tienes cuenta? Regístrate',
                         style: TextStyle(
-                          color: Color(0xFF7C3AED), // AppTheme.accent equivalent
+                          color:
+                              Color(0xFF7C3AED), // AppTheme.accent equivalent
                           fontWeight: FontWeight.bold,
                         ),
                       ),

@@ -1,5 +1,6 @@
 """Configuración de la base de datos con SQLAlchemy async."""
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from typing import AsyncGenerator
@@ -10,9 +11,10 @@ from app.core.config import settings
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=settings.DATABASE_POOL_SIZE,
+    max_overflow=settings.DATABASE_MAX_OVERFLOW,
     pool_pre_ping=True,
+    pool_recycle=1800,
 )
 
 # Fábrica de sesiones
@@ -45,6 +47,13 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Crear todas las tablas (usar solo en desarrollo)."""
+    """Create all tables for a fresh local development database."""
+    import app.models  # noqa: F401
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+
+async def check_database_connection() -> None:
+    """Raise an exception when the configured database cannot answer queries."""
+    async with engine.connect() as connection:
+        await connection.execute(text("SELECT 1"))

@@ -1,0 +1,116 @@
+name: apuradito-local
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../backend/migrations/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ..
+      dockerfile: local/backend.Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      ENVIRONMENT: local
+      DEBUG: "true"
+      DATABASE_URL_LOCAL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY: ${LOCAL_SECRET_KEY}
+      CORS_ORIGINS: http://localhost:${FRONTEND_PORT},http://127.0.0.1:${FRONTEND_PORT}
+      OCR_SERVICE_URL: http://ocr:8011
+      FACE_SERVICE_URL: http://face:8012
+      ROUTES_AI_SERVICE_URL: http://routes-ai:8013
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN}
+    ports:
+      - "${BACKEND_PORT}:8000"
+    volumes:
+      - ../backend:/workspace/backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: local/frontend.Dockerfile
+    command: npm run dev -- --host 0.0.0.0
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "${FRONTEND_PORT}:5173"
+    volumes:
+      - ../frontend:/workspace/frontend
+      - frontend_node_modules:/workspace/frontend/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  ocr:
+    profiles: ["ai"]
+    build: ../ai-services/ocr
+    ports:
+      - "${OCR_PORT}:8011"
+    environment:
+      OCR_ENGINE: ${OCR_ENGINE}
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN}
+      OCR_PRELOAD_MODEL: "false"
+
+  face:
+    profiles: ["ai"]
+    build: ../ai-services/face
+    ports:
+      - "${FACE_PORT}:8012"
+    environment:
+      FACE_ENGINE: ${FACE_ENGINE}
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN}
+
+  routes-ai:
+    profiles: ["ai"]
+    build: ../ai-services/routes
+    ports:
+      - "${ROUTES_AI_PORT}:8013"
+    environment:
+      ROUTE_MODEL_DIR: /app/models
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN}
+    volumes:
+      - route_models:/app/models
+
+volumes:
+  postgres_data:
+  redis_data:
+  frontend_node_modules:
+  route_models:

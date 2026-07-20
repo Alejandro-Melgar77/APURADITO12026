@@ -16,6 +16,10 @@ class ActiveRouteModel {
     this.vehiculoColor,
     this.lat,
     this.lng,
+    this.origenLat,
+    this.origenLng,
+    this.destinoLat,
+    this.destinoLng,
     this.esSimulacion = false,
     this.rutaGeojson = const [],
   });
@@ -32,6 +36,10 @@ class ActiveRouteModel {
   final String? vehiculoColor;
   final double? lat;
   final double? lng;
+  final double? origenLat;
+  final double? origenLng;
+  final double? destinoLat;
+  final double? destinoLng;
   final bool esSimulacion;
 
   /// Lista de [lng, lat] desde OSRM — representa la ruta por calles reales.
@@ -58,10 +66,14 @@ class ActiveRouteModel {
     if (lat != null && lng != null) {
       return LatLng(lat!, lng!);
     }
+    if (origenLat != null && origenLng != null) {
+      return LatLng(origenLat!, origenLng!);
+    }
+    if (routePolyline.isNotEmpty) return routePolyline.first;
     return null;
   }
 
-  bool get hasPosition => lat != null && lng != null;
+  bool get hasPosition => currentPosition != null;
   bool get hasRoute => rutaGeojson.isNotEmpty;
 
   factory ActiveRouteModel.fromJson(Map<String, dynamic> json) {
@@ -78,6 +90,10 @@ class ActiveRouteModel {
       vehiculoColor: json['vehiculo_color'] as String?,
       lat: (json['lat'] as num?)?.toDouble(),
       lng: (json['lng'] as num?)?.toDouble(),
+      origenLat: (json['origen_lat'] as num?)?.toDouble(),
+      origenLng: (json['origen_lng'] as num?)?.toDouble(),
+      destinoLat: (json['destino_lat'] as num?)?.toDouble(),
+      destinoLng: (json['destino_lng'] as num?)?.toDouble(),
       esSimulacion: json['es_simulacion'] as bool? ?? false,
       rutaGeojson: json['ruta_geojson'] as List<dynamic>? ?? const [],
     );
@@ -103,10 +119,35 @@ class ActiveRouteModel {
       vehiculoColor: vehiculoColor,
       lat: lat ?? this.lat,
       lng: lng ?? this.lng,
+      origenLat: origenLat,
+      origenLng: origenLng,
+      destinoLat: destinoLat,
+      destinoLng: destinoLng,
       esSimulacion: esSimulacion,
       rutaGeojson: rutaGeojson ?? this.rutaGeojson,
     );
   }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'id': id,
+        'conductor_nombre': conductorNombre,
+        'conductor_apellido': conductorApellido,
+        'origen_direccion': origenDireccion,
+        'destino_direccion': destinoDireccion,
+        'asientos_disponibles': asientosDisponibles,
+        'estado': estado,
+        'hora_salida': horaSalida,
+        'vehiculo_placa': vehiculoPlaca,
+        'vehiculo_color': vehiculoColor,
+        'lat': lat,
+        'lng': lng,
+        'origen_lat': origenLat,
+        'origen_lng': origenLng,
+        'destino_lat': destinoLat,
+        'destino_lng': destinoLng,
+        'es_simulacion': esSimulacion,
+        'ruta_geojson': rutaGeojson,
+      };
 }
 
 /// Modelo de ruta publicada (para conductores al crear viaje).
@@ -146,6 +187,22 @@ class PublishedRouteModel {
       duracionEstimadaMin: json['duracion_estimada_min'] as int?,
     );
   }
+
+  PublishedRouteModel copyWith({
+    int? asientosDisponibles,
+    String? estado,
+  }) =>
+      PublishedRouteModel(
+        id: id,
+        origenDireccion: origenDireccion,
+        destinoDireccion: destinoDireccion,
+        asientosDisponibles: asientosDisponibles ?? this.asientosDisponibles,
+        estado: estado ?? this.estado,
+        horaSalida: horaSalida,
+        costoCalculadoBs: costoCalculadoBs,
+        distanciaTotalKm: distanciaTotalKm,
+        duracionEstimadaMin: duracionEstimadaMin,
+      );
 }
 
 /// Solicitud de viaje (pasajero pide unirse a ruta).
@@ -157,6 +214,10 @@ class RideRequestModel {
     required this.metodoPago,
     this.pasajeroNombre,
     this.rutaId,
+    this.conductorId,
+    this.conductorNombre,
+    this.origenDireccion,
+    this.destinoDireccion,
   });
 
   final String id;
@@ -165,6 +226,10 @@ class RideRequestModel {
   final String metodoPago;
   final String? pasajeroNombre;
   final String? rutaId;
+  final String? conductorId;
+  final String? conductorNombre;
+  final String? origenDireccion;
+  final String? destinoDireccion;
 
   factory RideRequestModel.fromJson(Map<String, dynamic> json) {
     return RideRequestModel(
@@ -174,8 +239,25 @@ class RideRequestModel {
       metodoPago: json['metodo_pago'] as String? ?? 'coins',
       pasajeroNombre: json['pasajero_nombre'] as String?,
       rutaId: json['ruta_publicada_id'] as String?,
+      conductorId: json['conductor_id'] as String?,
+      conductorNombre: json['conductor_nombre'] as String?,
+      origenDireccion: json['origen_direccion'] as String?,
+      destinoDireccion: json['destino_direccion'] as String?,
     );
   }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'id': id,
+        'estado': estado,
+        'costo_calculado_bs': costoCalculadoBs,
+        'metodo_pago': metodoPago,
+        'pasajero_nombre': pasajeroNombre,
+        'ruta_publicada_id': rutaId,
+        'conductor_id': conductorId,
+        'conductor_nombre': conductorNombre,
+        'origen_direccion': origenDireccion,
+        'destino_direccion': destinoDireccion,
+      };
 }
 
 /// Modelo de pago / transacción.

@@ -1,0 +1,31 @@
+services:
+  ocr:
+    build: ./ocr
+    ports:
+      - "8011:8011"
+    environment:
+      OCR_ENGINE: easyocr
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
+      # Prevents a large OCR model from loading until its first request.
+      OCR_PRELOAD_MODEL: "false"
+
+  face:
+    build: ./face
+    ports:
+      - "8012:8012"
+    environment:
+      FACE_ENGINE: face_recognition
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
+
+  routes:
+    build: ./routes
+    ports:
+      - "8013:8013"
+    environment:
+      ROUTE_MODEL_DIR: /app/models
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
+    volumes:
+      - route_models:/app/models
+
+volumes:
+  route_models:

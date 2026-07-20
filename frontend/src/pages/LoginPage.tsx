@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { api } from '../services/api'
-import { Car, Lock, Mail, Eye, EyeOff, ArrowRight } from 'lucide-react'
+import { Lock, Mail, Eye, EyeOff, ArrowRight } from 'lucide-react'
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('')
@@ -41,18 +41,21 @@ const LoginPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4 transition-colors duration-200">
-      <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 shadow-xl flex flex-col items-center">
+    <div
+      className="min-h-screen bg-slate-950 flex items-center justify-center p-4 transition-colors duration-200 bg-cover bg-center"
+      style={{ backgroundImage: "linear-gradient(90deg, rgba(12, 7, 42, 0.94), rgba(37, 17, 89, 0.70)), url('/brand-routes.png')" }}
+    >
+      <div className="w-full max-w-[400px] bg-white/95 dark:bg-slate-950/90 backdrop-blur-xl border border-white/20 dark:border-violet-400/20 rounded-3xl p-8 shadow-2xl flex flex-col items-center">
         {/* LOGO DE APURADITO */}
-        <div className="w-16 h-16 bg-violet-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-violet-500/35 mb-6">
-          <Car size={32} />
+        <div className="w-20 h-20 rounded-3xl overflow-hidden shadow-lg shadow-violet-500/35 mb-5 ring-1 ring-white/50">
+          <img src="/logo.png" alt="Apuradito" className="w-full h-full object-cover" />
         </div>
 
         <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white leading-tight">
-          Welcome back!
+          Bienvenido a Apuradito
         </h2>
         <p className="text-sm font-medium text-slate-400 dark:text-slate-500 mt-2 mb-8">
-          Sign in to find your perfect ride
+          Panel de administración y control operativo
         </p>
 
         {error && (
@@ -69,7 +72,9 @@ const LoginPage: React.FC = () => {
             </span>
             <input
               type="email"
-              placeholder="Email address"
+              placeholder="Correo electrónico"
+              aria-label="Correo electrónico"
+              autoComplete="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -84,7 +89,9 @@ const LoginPage: React.FC = () => {
             </span>
             <input
               type={showPassword ? 'text' : 'password'}
-              placeholder="Password"
+              placeholder="Contraseña"
+              aria-label="Contraseña"
+              autoComplete="current-password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -93,6 +100,8 @@ const LoginPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              aria-pressed={showPassword}
               className="absolute inset-y-0 right-4 flex items-center text-slate-400 hover:text-slate-600"
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -105,7 +114,7 @@ const LoginPage: React.FC = () => {
             disabled={loading}
             className="w-full mt-2 py-3.5 rounded-2xl bg-violet-600 text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-violet-700 shadow-md shadow-violet-500/20 active:scale-95 transition-all duration-200 disabled:opacity-50"
           >
-            {loading ? 'Ingresando...' : 'Continue'}
+            {loading ? 'Ingresando...' : 'Ingresar al panel'}
             <ArrowRight size={18} />
           </button>
         </form>
@@ -113,7 +122,7 @@ const LoginPage: React.FC = () => {
         <div className="w-full flex items-center justify-center my-6 gap-3">
           <div className="h-[1px] bg-slate-200 dark:bg-slate-800 flex-1"></div>
           <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase">
-            or
+            o
           </span>
           <div className="h-[1px] bg-slate-200 dark:bg-slate-800 flex-1"></div>
         </div>
@@ -132,12 +141,11 @@ const LoginPage: React.FC = () => {
             alt="Google logo"
             className="w-4 h-4 object-contain"
           />
-          Continue with Google
+          Continuar con Google
         </button>
 
         <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 mt-8">
-          New to Apuradito?{' '}
-          <span className="text-violet-600 cursor-pointer hover:underline">Sign up</span>
+          Acceso exclusivo para personal autorizado
         </span>
       </div>
     </div>

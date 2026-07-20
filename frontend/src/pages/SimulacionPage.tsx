@@ -8,8 +8,9 @@ import {
   useMapEvents,
 } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-import { api } from '../services/api'
+import { api, getWebSocketBaseURL } from '../services/api'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { useEnvStore } from '../store/envStore'
 import { Play, Square, Settings, Wifi, WifiOff, Car, Navigation } from 'lucide-react'
 import L from 'leaflet'
 
@@ -79,6 +80,9 @@ interface ViajeWS {
   velocidad?: number
   ruta_geojson?: [number, number][] // [lng, lat] pairs from OSRM
 }
+
+const isSimulationMessage = (data: unknown): data is { tipo: string; data?: ViajeWS[] } =>
+  typeof data === 'object' && data !== null && 'tipo' in data && 'data' in data
 
 // ─── MapClickHandler ─────────────────────────────────────────────────────────
 const MapClickHandler: React.FC<{ onMapClick: (latlng: LatLng) => void }> = ({
@@ -152,6 +156,7 @@ const SimulacionPage: React.FC = () => {
 
   const [viajes, setViajes] = useState<ViajeWS[]>([])
   const [error, setError] = useState<string | null>(null)
+  const env = useEnvStore((state) => state.env)
 
   // Sincronizar estado inicial
   useEffect(() => {
@@ -168,10 +173,10 @@ const SimulacionPage: React.FC = () => {
   }, [])
 
   // WebSocket unificado de viajes
-  const wsBase = (import.meta.env.VITE_API_URL_PROD || 'http://localhost:8000').replace(/^http/, 'ws').replace(/\/$/, '')
+  const wsBase = getWebSocketBaseURL(env)
   const { isConnected } = useWebSocket(`${wsBase}/ws/viajes`, {
     onMessage: (data) => {
-      if (data.tipo === 'viajes_activos' || data.tipo === 'update_simulacion') {
+      if (isSimulationMessage(data) && (data.tipo === 'viajes_activos' || data.tipo === 'update_simulacion')) {
         if (Array.isArray(data.data)) {
           setViajes(data.data as ViajeWS[])
         }

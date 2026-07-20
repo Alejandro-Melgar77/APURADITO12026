@@ -1,39 +1,81 @@
 services:
+  # 1. Backend Central FastAPI (Servicio Web - Plan Gratis)
   - type: web
     name: apuradito-backend
     env: python
-    rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    rootDir: backend
     plan: free
     envVars:
       - key: DATABASE_URL
-        sync: false
-      - key: DATABASE_URL_PRODUCTION
-        sync: false
+        sync: false # Debes pegar la URL de Supabase con el protocolo postgresql://
       - key: SECRET_KEY
-        generateValue: true
+        generateValue: true # Genera automáticamente una clave para los JWT tokens
       - key: ENVIRONMENT
         value: production
+      - key: AUTO_CREATE_SCHEMA
+        value: "true" # Crea las tablas en Supabase de forma automática al iniciar
       - key: CORS_ORIGINS
-        value: "*"
-      - key: DEBUG
-        value: "false"
+        value: "*" # Permite conexiones desde el frontend y app móvil
+      - key: AI_SERVICE_TOKEN
+        sync: false # Debes inventar una contraseña secreta y pegarla aquí
+      - key: OCR_SERVICE_URL
+        fromService:
+          type: web
+          name: apuradito-ocr
+          property: host
+      - key: FACE_SERVICE_URL
+        fromService:
+          type: web
+          name: apuradito-face
+          property: host
+      - key: ROUTES_AI_SERVICE_URL
+        fromService:
+          type: web
+          name: apuradito-routes
+          property: host
 
+  # 2. Servicio de IA - OCR Placas (Docker - Plan Gratis)
+  - type: web
+    name: apuradito-ocr
+    env: docker
+    rootDir: ai-services/ocr
+    plan: free
+    envVars:
+      - key: AI_SERVICE_TOKEN
+        sync: false # Pega la misma contraseña secreta aquí
+
+  # 3. Servicio de IA - Reconocimiento Facial (Docker - Plan Gratis)
+  - type: web
+    name: apuradito-face
+    env: docker
+    rootDir: ai-services/face
+    plan: free
+    envVars:
+      - key: AI_SERVICE_TOKEN
+        sync: false # Pega la misma contraseña secreta aquí
+
+  # 4. Servicio de IA - Rutas y Machine Learning (Docker - Plan Gratis)
+  - type: web
+    name: apuradito-routes
+    env: docker
+    rootDir: ai-services/routes
+    plan: free
+    envVars:
+      - key: AI_SERVICE_TOKEN
+        sync: false # Pega la misma contraseña secreta aquí
+
+  # 5. Frontend React Vite (Sitio Estático - Plan Gratis)
   - type: web
     name: apuradito-frontend
     env: static
-    rootDir: frontend
     buildCommand: npm install && npm run build
     publishDir: dist
+    rootDir: frontend
     plan: free
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: apuradito-backend
-          property: host
-      - key: VITE_API_URL_PROD
         fromService:
           type: web
           name: apuradito-backend

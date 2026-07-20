@@ -1,10 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { Bell, Sun, Moon, Search, Laptop, Monitor } from 'lucide-react'
+import { Bell, Sun, Moon, Search, Menu } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useEnvStore } from '../../store/envStore'
 import { api } from '../../services/api'
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  onMenuToggle: () => void
+}
+
+const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
   const usuario = useAuthStore((state) => state.usuario)
   const { env, toggleEnv } = useEnvStore()
 
@@ -57,24 +61,37 @@ const Header: React.FC = () => {
   }
 
   return (
-    <header className="fixed top-0 right-0 h-16 left-[260px] bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 z-10 transition-colors duration-200">
+    <header className="fixed inset-x-0 top-0 z-10 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900 sm:px-6 lg:left-[260px] lg:px-8">
       {/* Buscador */}
-      <div className="relative w-72">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onMenuToggle}
+          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden"
+          aria-label="Abrir menú de navegación"
+        >
+          <Menu size={20} />
+        </button>
+        <div className="relative hidden w-72 sm:block">
         <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
           <Search size={18} />
         </span>
         <input
           type="text"
           placeholder="Buscar usuarios, viajes..."
+          aria-label="Buscar usuarios o viajes"
           className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-violet-500 focus:bg-white dark:focus:bg-slate-900 focus:outline-none text-sm transition-all duration-200 text-slate-800 dark:text-white"
         />
+        </div>
       </div>
 
       {/* Controles de barra superior */}
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-2 sm:gap-4 lg:gap-6">
         {/* Toggle de Entorno (Local / En línea) */}
         <button
+          type="button"
           onClick={toggleEnv}
+          aria-label={`Cambiar a entorno ${env === 'local' ? 'en línea' : 'local'}`}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
             env === 'local'
               ? 'bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-900/50'
@@ -86,7 +103,9 @@ const Header: React.FC = () => {
 
         {/* Toggle Claro/Oscuro */}
         <button
+          type="button"
           onClick={toggleTheme}
+          aria-label="Cambiar tema claro u oscuro"
           className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-violet-600 transition-colors duration-200"
           title="Cambiar tema claro/oscuro"
         >
@@ -96,7 +115,10 @@ const Header: React.FC = () => {
         {/* Campanita Notificaciones */}
         <div className="relative" ref={notifRef}>
           <button
+            type="button"
             onClick={() => setShowNotif(!showNotif)}
+            aria-label="Mostrar notificaciones"
+            aria-expanded={showNotif}
             className="relative cursor-pointer p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-violet-600 transition-colors duration-200"
           >
             <Bell size={18} />
@@ -139,7 +161,7 @@ const Header: React.FC = () => {
         </div>
 
         {/* Perfil Admin */}
-        <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-800">
+        <div className="flex items-center gap-3 border-l border-slate-200 pl-2 dark:border-slate-800 sm:pl-4">
           <div className="w-9 h-9 rounded-full bg-violet-100 dark:bg-violet-950 flex items-center justify-center text-violet-600 dark:text-violet-300 font-bold overflow-hidden shadow-inner">
             {usuario?.foto_perfil_url ? (
               <img

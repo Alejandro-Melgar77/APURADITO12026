@@ -73,10 +73,10 @@ class ApuraditoButton extends StatelessWidget {
                 end: Alignment.centerRight,
               )
             : null,
-        color: isOutlined ? Colors.transparent : (onPressed == null ? Colors.grey : null),
-        border: isOutlined
-            ? Border.all(color: primaryColor, width: 2)
-            : null,
+        color: isOutlined
+            ? Colors.transparent
+            : (onPressed == null ? Colors.grey : null),
+        border: isOutlined ? Border.all(color: primaryColor, width: 2) : null,
         boxShadow: !isOutlined && onPressed != null
             ? [
                 BoxShadow(
