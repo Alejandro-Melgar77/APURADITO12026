@@ -2,7 +2,7 @@ services:
   # 1. Backend Central FastAPI (Servicio Web - Plan Gratis)
   - type: web
     name: apuradito-backend
-    env: python
+    runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     rootDir: backend
@@ -39,7 +39,7 @@ services:
   # 2. Servicio de IA - OCR Placas (Docker - Plan Gratis)
   - type: web
     name: apuradito-ocr
-    env: docker
+    runtime: docker
     rootDir: ai-services/ocr
     plan: free
     envVars:
@@ -49,7 +49,7 @@ services:
   # 3. Servicio de IA - Reconocimiento Facial (Docker - Plan Gratis)
   - type: web
     name: apuradito-face
-    env: docker
+    runtime: docker
     rootDir: ai-services/face
     plan: free
     envVars:
@@ -59,7 +59,7 @@ services:
   # 4. Servicio de IA - Rutas y Machine Learning (Docker - Plan Gratis)
   - type: web
     name: apuradito-routes
-    env: docker
+    runtime: docker
     rootDir: ai-services/routes
     plan: free
     envVars:
@@ -69,14 +69,11 @@ services:
   # 5. Frontend React Vite (Sitio Estático - Plan Gratis)
   - type: web
     name: apuradito-frontend
-    env: static
+    runtime: static
     buildCommand: npm install && npm run build
-    publishDir: dist
+    staticPublishPath: dist
     rootDir: frontend
     plan: free
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: apuradito-backend
-          property: host
+        sync: false # Pega la URL PÚBLICA de tu backend en Render cuando se cree (ej: https://apuradito-backend-xxx.onrender.com)
