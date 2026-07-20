@@ -8,6 +8,8 @@ services:
     rootDir: backend
     plan: free
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
       - key: DATABASE_URL
         sync: false # Debes pegar la URL de Supabase con el protocolo postgresql://
       - key: SECRET_KEY
@@ -74,5 +76,7 @@ services:
     staticPublishPath: dist
     rootDir: frontend
     envVars:
+      - key: NODE_VERSION
+        value: 20
       - key: VITE_API_URL
         sync: false # Pega la URL PÚBLICA de tu backend en Render cuando se cree (ej: https://apuradito-backend-xxx.onrender.com)
